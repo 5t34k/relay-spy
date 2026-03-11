@@ -2,6 +2,8 @@
 
 A web tool for inspecting and debugging Nostr relay events in real time.
 
+Try it out: https://relayspy.5t34k.com/
+
 ## What it does
 
 Relay Spy connects to any Nostr relay via WebSocket and displays every event as it arrives. Events are shown in **detection order** (the order your client sees them), not by their `created_at` timestamps. This matters when you're debugging relay behavior, event propagation, or verifying that your app is publishing events correctly.
