@@ -1,0 +1,2439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relay Spy</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='38' cy='38' r='24' fill='none' stroke='%237b68ee' stroke-width='12'/><line x1='56' y1='56' x2='85' y2='85' stroke='%237b68ee' stroke-width='12' stroke-linecap='round'/></svg>">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a25;
+    --border: #2a2a3a;
+    --text: #e0e0e8;
+    --text-dim: #888899;
+    --accent: #7b68ee;
+    --accent-dim: #5a4abf;
+    --green: #4ade80;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --orange: #fb923c;
+    --cyan: #22d3ee;
+    --pink: #f472b6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+
+  .logo {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  .logo span { color: var(--text-dim); font-weight: 400; }
+
+  .relay-input-group {
+    display: flex;
+    flex: 1;
+    gap: 8px;
+  }
+
+  .relay-input-group input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+  }
+
+  .relay-input-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  button:hover { background: var(--accent-dim); }
+
+  button.secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  button.secondary:hover { background: var(--border); }
+
+  button.danger { background: var(--red); }
+  button.danger:hover { opacity: 0.85; }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 4px;
+  }
+
+  .status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.disconnected { background: var(--red); }
+  .status-dot.connecting { background: var(--yellow); animation: pulse 1s infinite; }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .stat { color: var(--text); font-weight: 600; }
+
+  .filters-container {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+  }
+
+  .filters-container label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .filter-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .filter-group input, .filter-group select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+    min-width: 120px;
+  }
+
+  .filter-group input:focus, .filter-group select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .filter-row-remove {
+    background: none;
+    border: none;
+    color: var(--red);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+    opacity: 0.5;
+    margin-bottom: 2px;
+  }
+
+  .filter-row-remove:hover { opacity: 1; }
+
+  .filter-logic-connector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 6px 0;
+    padding-left: 8px;
+  }
+
+  .filter-logic-connector .logic-btn {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+
+  .filter-logic-connector .logic-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  .filter-logic-connector .logic-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .filter-actions-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .events-container {
+    padding: 12px 24px;
+  }
+
+  .event-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    animation: slideIn 0.2s ease-out;
+  }
+
+  .event-card.highlight-new {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(123, 104, 238, 0.15);
+  }
+
+  /* Left border kind colors */
+  .event-card.border-kind-0 { border-left-color: #60a5fa; }
+  .event-card.border-kind-1 { border-left-color: #4ade80; }
+  .event-card.border-kind-2 { border-left-color: #fb923c; }
+  .event-card.border-kind-3 { border-left-color: #c084fc; }
+  .event-card.border-kind-4 { border-left-color: #2dd4bf; }
+  .event-card.border-kind-5 { border-left-color: #f87171; }
+  .event-card.border-kind-6 { border-left-color: #a3e635; }
+  .event-card.border-kind-7 { border-left-color: #fbbf24; }
+  .event-card.border-kind-channel { border-left-color: #e9d5a0; }
+  .event-card.border-kind-zap { border-left-color: #facc15; }
+  .event-card.border-kind-replaceable { border-left-color: #7dd3fc; }
+  .event-card.border-kind-ephemeral { border-left-color: #d8b4fe; }
+  .event-card.border-kind-paramreplaceable { border-left-color: #6ee7b7; }
+  .event-card.border-kind-job { border-left-color: #fdba74; }
+  .event-card.border-kind-regular { border-left-color: #a5b4fc; }
+  .event-card.border-kind-default { border-left-color: #7b68ee; }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .event-header {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 10px 14px;
+    background: var(--surface2);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .event-header:hover { background: var(--border); }
+
+  .event-seq {
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 40px;
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  .event-label-zone {
+    flex-shrink: 0;
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .event-label-zone:not(:empty) {
+    margin-right: 8px;
+  }
+
+  .event-rest {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .event-kind-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .kind-0 { background: #1e3a5f; color: #60a5fa; }
+  .kind-1 { background: #1e3f1e; color: #4ade80; }
+  .kind-2 { background: #3f2e1e; color: #fb923c; }
+  .kind-3 { background: #3f1e3f; color: #c084fc; }
+  .kind-4 { background: #1e3f3f; color: #2dd4bf; }
+  .kind-5 { background: #3f1e1e; color: #f87171; }
+  .kind-6 { background: #2e3f1e; color: #a3e635; }
+  .kind-7 { background: #3f3f1e; color: #fbbf24; }
+  .kind-channel { background: #2e2e1e; color: #e9d5a0; }
+  .kind-zap { background: #3f3f1e; color: #facc15; }
+  .kind-replaceable { background: #1e2f3f; color: #7dd3fc; }
+  .kind-ephemeral { background: #2a1e3f; color: #d8b4fe; }
+  .kind-paramreplaceable { background: #1e3f2e; color: #6ee7b7; }
+  .kind-job { background: #3f2e1e; color: #fdba74; }
+  .kind-regular { background: #2a2a3a; color: #a5b4fc; }
+  .kind-default { background: #2a2a3a; color: #888899; }
+
+  .event-pubkey {
+    font-size: 12px;
+    color: var(--cyan);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+
+  .event-time {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .event-time .relative-time { color: var(--text-dim); }
+
+  .event-size {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .event-id-verification {
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .event-id-verification.valid { color: var(--green); }
+  .event-id-verification.invalid { color: var(--red); }
+
+  .event-sig-verification {
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .event-sig-verification.valid { color: var(--green); }
+  .event-sig-verification.invalid { color: var(--red); }
+  .event-sig-verification.unchecked { color: var(--text-dim); }
+
+  .event-body {
+    display: none;
+    padding: 14px;
+  }
+
+  .event-body.open { display: block; }
+
+  .event-details {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 6px 12px;
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+
+  .detail-label {
+    color: var(--text-dim);
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    padding-top: 2px;
+  }
+
+  .detail-value {
+    color: var(--text);
+    word-break: break-all;
+  }
+
+  .detail-value.pubkey { color: var(--cyan); }
+  .detail-value.kind { color: var(--orange); }
+  .detail-value.id-hash { color: var(--pink); }
+
+  .content-preview {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    max-height: 200px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .content-preview.json { color: var(--green); }
+
+  .tags-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  .tags-table th {
+    text-align: left;
+    color: var(--text-dim);
+    font-size: 10px;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tags-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .tags-table tr:last-child td { border-bottom: none; }
+
+  .tag-name { color: var(--orange); font-weight: 600; }
+
+  .raw-json {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    max-height: 300px;
+    overflow: auto;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-top: 8px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    margin: 12px 0 6px;
+    font-weight: 700;
+  }
+
+  .section-label:first-child { margin-top: 0; }
+
+  .copy-btn {
+    font-size: 11px;
+    padding: 3px 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 3px;
+    cursor: pointer;
+    float: right;
+  }
+
+  .copy-btn:hover { color: var(--text); background: var(--border); }
+
+  .event-tags-inline {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 1;
+    overflow: hidden;
+    align-items: center;
+  }
+
+  .event-tags-inline .inline-tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  .event-tags-inline .inline-tag .tag-key {
+    color: var(--orange);
+    font-weight: 600;
+  }
+
+  .paused-banner {
+    background: var(--yellow);
+    color: #000;
+    text-align: center;
+    padding: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    display: none;
+  }
+
+  .paused-banner.visible { display: block; }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+  }
+
+  .empty-state .big { font-size: 40px; margin-bottom: 12px; }
+
+  .actions-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .json-key { color: var(--cyan); }
+  .json-string { color: var(--green); }
+  .json-number { color: var(--orange); }
+  .json-bool { color: var(--yellow); }
+  .json-null { color: var(--text-dim); }
+
+  .detected-order {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  /* Custom Labels */
+  .labels-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .labels-bar-title {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 4px;
+  }
+
+  .label-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.15s;
+  }
+
+  .label-chip.active-filter {
+    border-color: white;
+  }
+
+  .label-chip .label-delete {
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.6;
+    cursor: pointer;
+  }
+
+  .label-chip .label-delete:hover {
+    opacity: 1;
+  }
+
+  .label-chip .label-edit {
+    font-size: 11px;
+    opacity: 0.6;
+    cursor: pointer;
+  }
+
+  .label-chip .label-edit:hover {
+    opacity: 1;
+  }
+
+  .label-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: 2px;
+  }
+
+  /* Label Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.open {
+    display: flex;
+  }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    width: 480px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal h3 {
+    margin-bottom: 16px;
+    color: var(--accent);
+    font-size: 16px;
+  }
+
+  .modal-field {
+    margin-bottom: 12px;
+  }
+
+  .modal-field label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+
+  .modal-field input, .modal-field select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 13px;
+  }
+
+  .modal-field input:focus, .modal-field select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .modal-field .hint {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 18px;
+  }
+
+  .label-preview {
+    margin-top: 12px;
+    padding: 10px;
+    background: var(--bg);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .label-preview .label-badge {
+    font-size: 12px;
+    padding: 2px 10px;
+  }
+
+  .label-criteria-summary {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+
+  /* Export modal */
+  .export-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .export-option {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .export-option:hover {
+    border-color: var(--accent);
+  }
+
+  .export-option h4 {
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+
+  .export-option p {
+    color: var(--text-dim);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .export-scope {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .export-scope label {
+    cursor: pointer;
+    padding: 5px 14px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 12px;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+  }
+
+  .export-scope label.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  .export-count {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+
+  .export-count .stat { color: var(--text); font-weight: 600; }
+
+  /* Tag conditions in label modal */
+  .tag-conditions {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    background: var(--bg);
+  }
+
+  .tag-condition-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .tag-condition-row:last-child { margin-bottom: 0; }
+
+  .tag-condition-row input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+    min-width: 0;
+  }
+
+  .tag-condition-row input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .tag-condition-row select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 6px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .tag-condition-row .remove-tag-btn {
+    background: none;
+    border: none;
+    color: var(--red);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 4px;
+    line-height: 1;
+    opacity: 0.6;
+  }
+
+  .tag-condition-row .remove-tag-btn:hover { opacity: 1; }
+
+  .tag-logic-label {
+    font-size: 10px;
+    color: var(--accent);
+    font-weight: 700;
+    min-width: 32px;
+    text-align: center;
+  }
+
+  .add-tag-btn {
+    font-size: 11px;
+    padding: 4px 10px;
+    margin-top: 8px;
+  }
+
+  .tag-logic-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+
+  .tag-logic-toggle label {
+    text-transform: none !important;
+    font-size: 12px !important;
+    letter-spacing: 0 !important;
+    cursor: pointer;
+    padding: 3px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+
+  .tag-logic-toggle label.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="logo">RELAY SPY</div>
+    <div class="relay-input-group">
+      <input type="text" id="relayUrl" value="ws://localhost:3334" placeholder="wss://relay.example.com">
+      <button id="connectBtn" onclick="toggleConnection()">Connect</button>
+    </div>
+    <div class="actions-row">
+      <button class="secondary" id="pauseBtn" onclick="togglePause()">Pause</button>
+      <button class="secondary" onclick="clearEvents()">Clear</button>
+      <button class="secondary" onclick="openExportModal()">Export</button>
+    </div>
+  </div>
+  <div class="status-bar">
+    <span><span class="status-dot disconnected" id="statusDot"></span> <span id="statusText">Disconnected</span></span>
+    <span>Events: <span class="stat" id="eventCount">0</span></span>
+    <span>Displayed: <span class="stat" id="displayedCount">0</span></span>
+    <span>Rate: <span class="stat" id="eventRate">0</span>/s</span>
+    <span>Relay: <span class="stat" id="relayName">-</span></span>
+    <span class="detected-order" id="detectedOrderNote">Events shown in detection order (newest first)</span>
+  </div>
+</div>
+
+<div class="paused-banner" id="pausedBanner">LIVE FEED PAUSED - New events are being buffered</div>
+
+<div class="filters-container">
+  <div id="filterRows"></div>
+  <div class="filter-actions-bar">
+    <button class="secondary" onclick="addFilterRow()">+ Add Filter Row</button>
+    <button class="secondary" onclick="clearFilters()">Clear Filters</button>
+  </div>
+  <div class="filter-actions-bar">
+    <div class="filter-group">
+      <label>Label</label>
+      <select id="filterLabel" onchange="applyFilters()">
+        <option value="">All</option>
+      </select>
+    </div>
+    <button onclick="openLabelModal()">+ Add Custom Label</button>
+  </div>
+</div>
+
+<div class="labels-bar" id="labelsBar" style="display:none">
+  <span class="labels-bar-title">Labels:</span>
+  <div id="labelChips"></div>
+</div>
+
+<!-- Label Modal -->
+<div class="modal-overlay" id="labelModal">
+  <div class="modal">
+    <h3 id="labelModalTitle">Add Custom Label</h3>
+    <div class="modal-field">
+      <label>Label Name *</label>
+      <input type="text" id="labelName" placeholder="e.g. My App Posts, Alice's DMs">
+    </div>
+    <div class="modal-field">
+      <label>Kind</label>
+      <input type="text" id="labelKind" placeholder="e.g. 1,4,30023 (comma-separated)">
+      <div class="hint">Leave blank to match any kind</div>
+    </div>
+    <div class="modal-field">
+      <label>Pubkey (hex or npub)</label>
+      <input type="text" id="labelPubkey" placeholder="hex prefix or npub">
+      <div class="hint">Prefix match</div>
+    </div>
+    <div class="modal-field">
+      <label>Event ID</label>
+      <input type="text" id="labelEventId" placeholder="hex prefix">
+    </div>
+    <div class="modal-field">
+      <label>Content contains</label>
+      <input type="text" id="labelContent" placeholder="text to search in content">
+    </div>
+    <div class="modal-field">
+      <label>Tag Conditions</label>
+      <div class="tag-conditions" id="tagConditions">
+        <!-- tag condition rows with AND/OR connectors inserted here -->
+      </div>
+      <button class="secondary add-tag-btn" onclick="addTagConditionRow()">+ Add Tag Condition</button>
+      <div class="hint">Each condition matches tags where name equals and value contains the text. AND groups are OR'd together, same logic as filter rows.</div>
+    </div>
+    <div class="modal-field">
+      <label>ID Valid</label>
+      <select id="labelIdValid">
+        <option value="">Any</option>
+        <option value="valid">Valid only</option>
+        <option value="invalid">Invalid only</option>
+      </select>
+    </div>
+    <div class="label-preview" id="labelPreview">
+      Preview: <span class="label-badge" id="labelPreviewBadge" style="background:#7b68ee;color:#fff;">Label</span>
+      <div class="label-criteria-summary" id="labelCriteriaSummary">Fill in at least one filter criterion</div>
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" onclick="closeLabelModal()">Cancel</button>
+      <button id="labelSaveBtn" onclick="saveLabel()">Add Label</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal-overlay" id="exportModal">
+  <div class="modal">
+    <h3>Export Events</h3>
+    <div class="export-scope">
+      <span style="color:var(--text-dim);font-size:12px;padding:5px 0;">Scope:</span>
+      <label class="active" data-scope="all" onclick="setExportScope('all')">All Events</label>
+      <label data-scope="filtered" onclick="setExportScope('filtered')">Filtered Only</label>
+    </div>
+    <div class="export-count" id="exportCount">
+      <span class="stat" id="exportEventCount">0</span> events will be exported
+    </div>
+    <div class="export-options">
+      <div class="export-option" onclick="doExport('json')">
+        <h4>JSON</h4>
+        <p>Full structured data with all event fields, raw JSON, matched labels, verification status, detection timestamps, and event sizes. Best for programmatic use.</p>
+      </div>
+      <div class="export-option" onclick="doExport('csv')">
+        <h4>CSV</h4>
+        <p>Flattened table with one row per event. Includes id, pubkey, npub, kind, kind name, created_at, content, tags (JSON), labels, ID valid, size, detected at. Opens in spreadsheets.</p>
+      </div>
+      <div class="export-option" onclick="doExport('raw')">
+        <h4>Raw JSONL</h4>
+        <p>One raw nostr event JSON object per line, no extra metadata. Useful for replaying events to another relay or importing into other tools.</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" onclick="closeExportModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="events-container" id="eventsContainer">
+  <div class="empty-state" id="emptyState">
+    <div class="big">&#x1f50d;</div>
+    <div>Connect to a relay to start spying on events</div>
+  </div>
+</div>
+
+<script>
+  // Known kind names (NIP-01 and common NIPs)
+  const KIND_NAMES = {
+    0: 'Metadata',
+    1: 'Short Text Note',
+    2: 'Recommend Relay',
+    3: 'Contact List',
+    4: 'Encrypted DM',
+    5: 'Deletion',
+    6: 'Repost',
+    7: 'Reaction',
+    8: 'Badge Award',
+    9: 'Group Chat Message',
+    10: 'Group Chat',
+    11: 'Group Thread',
+    12: 'Group Thread Reply',
+    13: 'Seal',
+    14: 'Direct Message',
+    16: 'Generic Repost',
+    40: 'Channel Create',
+    41: 'Channel Metadata',
+    42: 'Channel Message',
+    43: 'Channel Hide Message',
+    44: 'Channel Mute User',
+    1021: 'Bid',
+    1022: 'Bid Confirmation',
+    1040: 'OpenTimestamps',
+    1059: 'Gift Wrap',
+    1063: 'File Metadata',
+    1311: 'Live Chat Message',
+    1617: 'Patches',
+    1621: 'Issues',
+    1984: 'Report',
+    1985: 'Label',
+    4550: 'Community Post Approval',
+    5000: 'Job Request',
+    6000: 'Job Result',
+    7000: 'Job Feedback',
+    9041: 'Zap Goal',
+    9734: 'Zap Request',
+    9735: 'Zap Receipt',
+    10000: 'Mute List',
+    10001: 'Pin List',
+    10002: 'Relay List Metadata',
+    10003: 'Bookmark List',
+    10004: 'Communities List',
+    10005: 'Public Chats List',
+    10006: 'Blocked Relays List',
+    10007: 'Search Relays List',
+    10009: 'User Groups',
+    10015: 'Interests List',
+    10030: 'User Emoji List',
+    13194: 'Wallet Info',
+    22242: 'Client Auth',
+    23194: 'Wallet Request',
+    23195: 'Wallet Response',
+    24133: 'Nostr Connect',
+    27235: 'HTTP Auth',
+    30000: 'Follow Sets',
+    30001: 'Generic Lists',
+    30002: 'Relay Sets',
+    30003: 'Bookmark Sets',
+    30004: 'Curation Sets',
+    30008: 'Profile Badges',
+    30009: 'Badge Definition',
+    30017: 'Stall',
+    30018: 'Product',
+    30023: 'Long-form Content',
+    30024: 'Draft Long-form',
+    30078: 'App-specific Data',
+    30311: 'Live Event',
+    30315: 'User Status',
+    30402: 'Classified Listing',
+    30403: 'Draft Classified',
+    31922: 'Date-based Calendar Event',
+    31923: 'Time-based Calendar Event',
+    31924: 'Calendar',
+    31925: 'Calendar Event RSVP',
+    31989: 'Handler Recommendation',
+    31990: 'Handler Information',
+    34550: 'Community Definition',
+  };
+
+  function getKindName(kind) {
+    if (KIND_NAMES[kind]) return KIND_NAMES[kind];
+    if (kind >= 5000 && kind < 6000) return 'Job Request';
+    if (kind >= 6000 && kind < 7000) return 'Job Result';
+    if (kind >= 4000 && kind < 5000) return 'Ephemeral';
+    if (kind >= 10000 && kind < 20000) return 'Replaceable';
+    if (kind >= 20000 && kind < 30000) return 'Ephemeral';
+    if (kind >= 30000 && kind < 40000) return 'Param. Replaceable';
+    return 'Unknown';
+  }
+
+  function getKindClass(kind) {
+    if (kind <= 7) return `kind-${kind}`;
+    if (kind >= 40 && kind <= 44) return 'kind-channel';
+    if (kind === 9734 || kind === 9735 || kind === 9041) return 'kind-zap';
+    if (kind >= 5000 && kind < 7000) return 'kind-job';
+    if (kind >= 10000 && kind < 20000) return 'kind-replaceable';
+    if (kind >= 20000 && kind < 30000) return 'kind-ephemeral';
+    if (kind >= 30000 && kind < 40000) return 'kind-paramreplaceable';
+    if (kind >= 8 && kind < 5000) return 'kind-regular';
+    return 'kind-default';
+  }
+
+  // State
+  let ws = null;
+  let events = []; // all events in detection order
+  let eventSeq = 0;
+  let paused = false;
+  let pauseBuffer = [];
+  let totalEvents = 0;
+  let rateEvents = [];
+  let subId = 'relay-spy-' + Math.random().toString(36).slice(2, 8);
+
+  // Bech32 encoding for npub/note display
+  const BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+
+  function bech32Polymod(values) {
+    const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+    let chk = 1;
+    for (const v of values) {
+      const b = chk >> 25;
+      chk = ((chk & 0x1ffffff) << 5) ^ v;
+      for (let i = 0; i < 5; i++) {
+        if ((b >> i) & 1) chk ^= GEN[i];
+      }
+    }
+    return chk;
+  }
+
+  function bech32HrpExpand(hrp) {
+    const ret = [];
+    for (let i = 0; i < hrp.length; i++) ret.push(hrp.charCodeAt(i) >> 5);
+    ret.push(0);
+    for (let i = 0; i < hrp.length; i++) ret.push(hrp.charCodeAt(i) & 31);
+    return ret;
+  }
+
+  function bech32CreateChecksum(hrp, data) {
+    const values = bech32HrpExpand(hrp).concat(data).concat([0, 0, 0, 0, 0, 0]);
+    const polymod = bech32Polymod(values) ^ 1;
+    const ret = [];
+    for (let i = 0; i < 6; i++) ret.push((polymod >> (5 * (5 - i))) & 31);
+    return ret;
+  }
+
+  function bech32Encode(hrp, data) {
+    const combined = data.concat(bech32CreateChecksum(hrp, data));
+    let ret = hrp + '1';
+    for (const d of combined) ret += BECH32_CHARSET[d];
+    return ret;
+  }
+
+  function convertBits(data, fromBits, toBits, pad) {
+    let acc = 0, bits = 0;
+    const ret = [];
+    const maxv = (1 << toBits) - 1;
+    for (const value of data) {
+      acc = (acc << fromBits) | value;
+      bits += fromBits;
+      while (bits >= toBits) {
+        bits -= toBits;
+        ret.push((acc >> bits) & maxv);
+      }
+    }
+    if (pad) {
+      if (bits > 0) ret.push((acc << (toBits - bits)) & maxv);
+    }
+    return ret;
+  }
+
+  function hexToNpub(hex) {
+    if (!hex || hex.length !== 64) return null;
+    try {
+      const bytes = [];
+      for (let i = 0; i < hex.length; i += 2) {
+        bytes.push(parseInt(hex.substr(i, 2), 16));
+      }
+      const words = convertBits(bytes, 8, 5, true);
+      return bech32Encode('npub', words);
+    } catch { return null; }
+  }
+
+  function hexToNote(hex) {
+    if (!hex || hex.length !== 64) return null;
+    try {
+      const bytes = [];
+      for (let i = 0; i < hex.length; i += 2) {
+        bytes.push(parseInt(hex.substr(i, 2), 16));
+      }
+      const words = convertBits(bytes, 8, 5, true);
+      return bech32Encode('note', words);
+    } catch { return null; }
+  }
+
+  // SHA-256 for event ID verification
+  async function sha256Hex(str) {
+    const buf = new TextEncoder().encode(str);
+    const hash = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function verifyEventId(event) {
+    const serialized = JSON.stringify([
+      0,
+      event.pubkey,
+      event.created_at,
+      event.kind,
+      event.tags,
+      event.content
+    ]);
+    const computed = await sha256Hex(serialized);
+    return computed === event.id;
+  }
+
+  // Connection
+  function toggleConnection() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      ws.close();
+    } else {
+      connect();
+    }
+  }
+
+  function setStatus(state, text) {
+    const dot = document.getElementById('statusDot');
+    const txt = document.getElementById('statusText');
+    dot.className = 'status-dot ' + state;
+    txt.textContent = text;
+    document.getElementById('connectBtn').textContent =
+      state === 'disconnected' ? 'Connect' : 'Disconnect';
+  }
+
+  function connect() {
+    const url = document.getElementById('relayUrl').value.trim();
+    if (!url) return;
+
+    setStatus('connecting', 'Connecting...');
+    document.getElementById('relayName').textContent = url;
+
+    try {
+      ws = new WebSocket(url);
+    } catch (e) {
+      setStatus('disconnected', 'Invalid URL');
+      return;
+    }
+
+    ws.onopen = () => {
+      setStatus('connected', 'Connected');
+      // Subscribe to ALL events from now on
+      const req = JSON.stringify(["REQ", subId, {}]);
+      ws.send(req);
+    };
+
+    ws.onmessage = (msg) => {
+      try {
+        const data = JSON.parse(msg.data);
+        if (data[0] === 'EVENT' && data[2]) {
+          handleEvent(data[2], msg.data);
+        } else if (data[0] === 'EOSE') {
+          // End of stored events - could display a marker
+        } else if (data[0] === 'NOTICE') {
+          console.log('Relay notice:', data[1]);
+        }
+      } catch (e) {
+        console.error('Failed to parse message:', e);
+      }
+    };
+
+    ws.onerror = () => {
+      setStatus('disconnected', 'Connection error');
+    };
+
+    ws.onclose = () => {
+      setStatus('disconnected', 'Disconnected');
+    };
+  }
+
+  async function handleEvent(event, rawMessage) {
+    eventSeq++;
+    const now = Date.now();
+    rateEvents.push(now);
+
+    const idValid = await verifyEventId(event);
+    const eventSize = new TextEncoder().encode(JSON.stringify(event)).length;
+
+    const entry = {
+      seq: eventSeq,
+      event: event,
+      rawMessage: rawMessage,
+      receivedAt: now,
+      idValid: idValid,
+      size: eventSize,
+    };
+
+    if (paused) {
+      pauseBuffer.push(entry);
+    } else {
+      events.unshift(entry);
+      renderEvent(entry, true);
+    }
+
+    totalEvents++;
+    updateStats();
+  }
+
+  function updateStats() {
+    document.getElementById('eventCount').textContent = totalEvents;
+    const now = Date.now();
+    rateEvents = rateEvents.filter(t => now - t < 5000);
+    const rate = rateEvents.length / 5;
+    document.getElementById('eventRate').textContent = rate.toFixed(1);
+    updateDisplayedCount();
+  }
+
+  function updateDisplayedCount() {
+    const visible = document.querySelectorAll('.event-card:not([style*="display: none"])').length;
+    document.getElementById('displayedCount').textContent = visible;
+  }
+
+  // Rate update interval
+  setInterval(() => {
+    const now = Date.now();
+    rateEvents = rateEvents.filter(t => now - t < 5000);
+    const rate = rateEvents.length / 5;
+    document.getElementById('eventRate').textContent = rate.toFixed(1);
+    // Update relative times
+    document.querySelectorAll('.relative-time').forEach(el => {
+      const ts = parseInt(el.dataset.received);
+      el.textContent = relativeTime(ts);
+    });
+  }, 1000);
+
+  function relativeTime(timestamp) {
+    const diff = Math.floor((Date.now() - timestamp) / 1000);
+    if (diff < 2) return 'just now';
+    if (diff < 60) return diff + 's ago';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+  }
+
+  function formatTimestamp(unix) {
+    const d = new Date(unix * 1000);
+    return d.toISOString().replace('T', ' ').replace('.000Z', ' UTC');
+  }
+
+  function truncate(str, len) {
+    if (!str) return '';
+    return str.length > len ? str.slice(0, len) + '...' : str;
+  }
+
+  function syntaxHighlightJson(json) {
+    const str = JSON.stringify(json, null, 2);
+    return str.replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+      (match) => {
+        let cls = 'json-number';
+        if (/^"/.test(match)) {
+          cls = /:$/.test(match) ? 'json-key' : 'json-string';
+        } else if (/true|false/.test(match)) {
+          cls = 'json-bool';
+        } else if (/null/.test(match)) {
+          cls = 'json-null';
+        }
+        return `<span class="${cls}">${match}</span>`;
+      }
+    );
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function isJsonContent(str) {
+    try {
+      const parsed = JSON.parse(str);
+      return typeof parsed === 'object' && parsed !== null;
+    } catch { return false; }
+  }
+
+  function renderEvent(entry, prepend) {
+    const emptyState = document.getElementById('emptyState');
+    if (emptyState) emptyState.remove();
+
+    const { event, seq, receivedAt, idValid, size } = entry;
+    const kindName = getKindName(event.kind);
+    const kindClass = getKindClass(event.kind);
+
+    const card = document.createElement('div');
+    const borderKindClass = 'border-' + kindClass;
+    card.className = `event-card highlight-new ${borderKindClass}`;
+    card.dataset.seq = seq;
+    card.dataset.kind = event.kind;
+    card.dataset.pubkey = event.pubkey || '';
+    card.dataset.npub = hexToNpub(event.pubkey) || '';
+    card.dataset.eventId = event.id || '';
+    card.dataset.content = (event.content || '').toLowerCase();
+    card.dataset.idValid = idValid ? 'valid' : 'invalid';
+
+    // Build tags data attributes for filtering
+    const tagNames = (event.tags || []).map(t => t[0]).join(',');
+    const tagValues = (event.tags || []).map(t => t.slice(1).join(',')).join('|');
+    card.dataset.tagNames = tagNames;
+    card.dataset.tagValues = tagValues.toLowerCase();
+    // Store structured tag pairs for label matching: [{n:"p", v:"abc..."}, ...]
+    card.dataset.tagPairs = JSON.stringify(
+      (event.tags || []).map(t => ({ n: t[0]?.toLowerCase() || '', v: t.slice(1).join(',').toLowerCase() }))
+    );
+
+    // Build inline tags preview (show up to 4 tags)
+    const inlineTags = (event.tags || []).slice(0, 4).map(t => {
+      const val = t[1] ? truncate(t[1], 12) : '';
+      return `<span class="inline-tag"><span class="tag-key">${escapeHtml(t[0])}</span>${val ? ':' + escapeHtml(val) : ''}</span>`;
+    }).join('');
+    const moreTagCount = (event.tags || []).length - 4;
+    const tagsOverflow = moreTagCount > 0 ? `<span class="inline-tag">+${moreTagCount}</span>` : '';
+
+    card.innerHTML = `
+      <div class="event-header" onclick="toggleEventBody(this)">
+        <span class="event-seq">#${seq}</span>
+        <span class="event-label-zone"></span>
+        <span class="event-rest">
+          <span class="event-kind-badge ${kindClass}">Kind ${event.kind}: ${escapeHtml(kindName)}</span>
+          <span class="event-pubkey" title="${escapeHtml(hexToNpub(event.pubkey) || event.pubkey || '')}">${escapeHtml((hexToNpub(event.pubkey) || '').slice(0, 20))}...</span>
+          <span class="event-tags-inline">${inlineTags}${tagsOverflow}</span>
+          <span class="event-id-verification ${idValid ? 'valid' : 'invalid'}">${idValid ? 'ID OK' : 'ID BAD'}</span>
+          <span class="event-size">${formatSize(size)}</span>
+          <span class="event-time">
+            <span class="relative-time" data-received="${receivedAt}">${relativeTime(receivedAt)}</span>
+          </span>
+        </span>
+      </div>
+      <div class="event-body" id="body-${seq}">
+        <div class="section-label">Event Fields</div>
+        <div class="event-details">
+          <span class="detail-label">Event ID</span>
+          <span class="detail-value id-hash">${escapeHtml(event.id || 'N/A')}</span>
+
+          <span class="detail-label">Note ID</span>
+          <span class="detail-value" style="color:var(--pink)">${escapeHtml(hexToNote(event.id) || 'N/A')}</span>
+
+          <span class="detail-label">ID Valid</span>
+          <span class="detail-value"><span class="event-id-verification ${idValid ? 'valid' : 'invalid'}">${idValid ? 'VALID - computed hash matches' : 'INVALID - hash mismatch!'}</span></span>
+
+          <span class="detail-label">Pubkey (hex)</span>
+          <span class="detail-value pubkey">${escapeHtml(event.pubkey || 'N/A')}</span>
+
+          <span class="detail-label">Pubkey (npub)</span>
+          <span class="detail-value pubkey">${escapeHtml(hexToNpub(event.pubkey) || 'N/A')}</span>
+
+          <span class="detail-label">Kind</span>
+          <span class="detail-value kind">${event.kind} (${escapeHtml(kindName)})</span>
+
+          <span class="detail-label">Created At</span>
+          <span class="detail-value">${event.created_at} &mdash; ${formatTimestamp(event.created_at)}</span>
+
+          <span class="detail-label">Detected At</span>
+          <span class="detail-value">${new Date(receivedAt).toISOString().replace('T', ' ').slice(0, 19)} UTC (local)</span>
+
+          <span class="detail-label">Latency</span>
+          <span class="detail-value">${Math.max(0, Math.floor(receivedAt / 1000) - event.created_at)}s (detected - created)</span>
+
+          <span class="detail-label">Signature</span>
+          <span class="detail-value" style="word-break:break-all;font-size:11px;">${escapeHtml(event.sig || 'N/A')}</span>
+
+          <span class="detail-label">Size</span>
+          <span class="detail-value">${formatSize(size)} (${size} bytes)</span>
+
+          <span class="detail-label">Tag Count</span>
+          <span class="detail-value">${(event.tags || []).length} tags</span>
+        </div>
+
+        ${(event.tags && event.tags.length > 0) ? `
+        <div class="section-label">Tags</div>
+        <table class="tags-table">
+          <tr><th>#</th><th>Tag</th><th>Values</th></tr>
+          ${event.tags.map((tag, i) => `
+            <tr>
+              <td>${i}</td>
+              <td><span class="tag-name">${escapeHtml(tag[0])}</span></td>
+              <td>${tag.slice(1).map(v => escapeHtml(v)).join(' &middot; ') || '<em style="color:var(--text-dim)">empty</em>'}</td>
+            </tr>
+          `).join('')}
+        </table>
+        ` : ''}
+
+        <div class="section-label">Content ${isJsonContent(event.content) ? '(JSON detected)' : ''}</div>
+        <div class="content-preview ${isJsonContent(event.content) ? 'json' : ''}">
+          ${isJsonContent(event.content) ? syntaxHighlightJson(JSON.parse(event.content)) : escapeHtml(event.content || '(empty)')}
+        </div>
+
+        <div class="section-label">
+          Raw Event JSON
+          <button class="copy-btn" onclick="copyJson(event, ${seq})">Copy JSON</button>
+        </div>
+        <div class="raw-json">${syntaxHighlightJson(event)}</div>
+      </div>
+    `;
+
+    const container = document.getElementById('eventsContainer');
+    if (prepend) {
+      container.prepend(card);
+    } else {
+      container.appendChild(card);
+    }
+
+    // Apply custom labels
+    renderLabelsOnCard(card);
+
+    // Remove highlight after animation
+    setTimeout(() => card.classList.remove('highlight-new'), 1500);
+
+    // Apply current filters
+    if (!matchesFilters(card)) {
+      card.style.display = 'none';
+    }
+
+    updateDisplayedCount();
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + 'B';
+    return (bytes / 1024).toFixed(1) + 'KB';
+  }
+
+  function toggleEventBody(header) {
+    const body = header.nextElementSibling;
+    body.classList.toggle('open');
+  }
+
+  window.copyJson = function(evt, seq) {
+    const entry = events.find(e => e.seq === seq);
+    if (entry) {
+      navigator.clipboard.writeText(JSON.stringify(entry.event, null, 2));
+    }
+  };
+
+  // Pause / Resume
+  function togglePause() {
+    paused = !paused;
+    const btn = document.getElementById('pauseBtn');
+    const banner = document.getElementById('pausedBanner');
+
+    if (paused) {
+      btn.textContent = 'Resume';
+      btn.classList.add('danger');
+      banner.classList.add('visible');
+    } else {
+      btn.textContent = 'Pause';
+      btn.classList.remove('danger');
+      banner.classList.remove('visible');
+      // Flush buffer
+      pauseBuffer.forEach(entry => {
+        events.unshift(entry);
+        renderEvent(entry, true);
+      });
+      pauseBuffer = [];
+    }
+  }
+
+  function clearEvents() {
+    events = [];
+    pauseBuffer = [];
+    totalEvents = 0;
+    eventSeq = 0;
+    rateEvents = [];
+    document.getElementById('eventsContainer').innerHTML = `
+      <div class="empty-state" id="emptyState">
+        <div class="big">&#x1f50d;</div>
+        <div>Events cleared - listening for new events...</div>
+      </div>
+    `;
+    updateStats();
+  }
+
+  // ── Dynamic Filter Rows ─────────────────────────────
+  let filterRowIdCounter = 0;
+  let filterRowLogics = {}; // keyed by row id, value is 'AND'|'OR' for the connector ABOVE this row
+
+  function buildFilterRowHtml(rowId, showRemove) {
+    return `
+      <div class="filter-row" data-row-id="${rowId}">
+        <div class="filter-group">
+          <label>Kind</label>
+          <input type="text" class="fr-kind" placeholder="e.g. 1,4,30023" oninput="applyFilters()">
+        </div>
+        <div class="filter-group">
+          <label>Pubkey</label>
+          <input type="text" class="fr-pubkey" placeholder="hex or npub" oninput="applyFilters()">
+        </div>
+        <div class="filter-group">
+          <label>Event ID</label>
+          <input type="text" class="fr-eventid" placeholder="hex prefix" oninput="applyFilters()">
+        </div>
+        <div class="filter-group">
+          <label>Content</label>
+          <input type="text" class="fr-content" placeholder="text in content" oninput="applyFilters()">
+        </div>
+        <div class="filter-group">
+          <label>Tag name</label>
+          <input type="text" class="fr-tagname" placeholder="e.g. p, e, t" oninput="applyFilters()">
+        </div>
+        <div class="filter-group">
+          <label>Tag value</label>
+          <input type="text" class="fr-tagvalue" placeholder="value in tag" oninput="applyFilters()">
+        </div>
+        <div class="filter-group">
+          <label>ID Valid</label>
+          <select class="fr-idvalid" onchange="applyFilters()">
+            <option value="">All</option>
+            <option value="valid">Valid</option>
+            <option value="invalid">Invalid</option>
+          </select>
+        </div>
+        ${showRemove ? '<button class="filter-row-remove" onclick="removeFilterRow(' + rowId + ')" title="Remove row">&times;</button>' : ''}
+      </div>
+    `;
+  }
+
+
+  function addFilterRow() {
+    filterRowIdCounter++;
+    const rowId = filterRowIdCounter;
+    const container = document.getElementById('filterRows');
+    const existingRows = container.querySelectorAll('.filter-row');
+
+    // If there are already rows, add a logic connector before the new row
+    if (existingRows.length > 0) {
+      filterRowLogics[rowId] = 'OR';
+      const connector = document.createElement('div');
+      connector.className = 'filter-logic-connector';
+      connector.id = 'filter-logic-' + rowId;
+      connector.innerHTML = `
+        <span class="logic-line"></span>
+        <button class="logic-btn" onclick="toggleFilterRowLogic(${rowId},'AND')" data-logic="AND">AND</button>
+        <button class="logic-btn active" onclick="toggleFilterRowLogic(${rowId},'OR')" data-logic="OR">OR</button>
+        <span class="logic-line"></span>
+      `;
+      container.appendChild(connector);
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = buildFilterRowHtml(rowId, existingRows.length > 0);
+    container.appendChild(wrapper.firstElementChild);
+  }
+
+  function removeFilterRow(rowId) {
+    const row = document.querySelector(`.filter-row[data-row-id="${rowId}"]`);
+    const connector = document.getElementById('filter-logic-' + rowId);
+    if (connector) connector.remove();
+    if (row) row.remove();
+    delete filterRowLogics[rowId];
+    applyFilters();
+  }
+
+  function toggleFilterRowLogic(rowId, logic) {
+    filterRowLogics[rowId] = logic;
+    const connector = document.getElementById('filter-logic-' + rowId);
+    if (connector) {
+      connector.querySelectorAll('.logic-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.logic === logic);
+      });
+    }
+    applyFilters();
+  }
+
+  function readFilterRow(rowEl) {
+    return {
+      kind: rowEl.querySelector('.fr-kind').value.trim(),
+      pubkey: rowEl.querySelector('.fr-pubkey').value.trim().toLowerCase(),
+      eventId: rowEl.querySelector('.fr-eventid').value.trim().toLowerCase(),
+      content: rowEl.querySelector('.fr-content').value.trim().toLowerCase(),
+      tagName: rowEl.querySelector('.fr-tagname').value.trim().toLowerCase(),
+      tagValue: rowEl.querySelector('.fr-tagvalue').value.trim().toLowerCase(),
+      idValid: rowEl.querySelector('.fr-idvalid').value,
+    };
+  }
+
+  function isRowEmpty(rowData) {
+    return !rowData.kind && !rowData.pubkey && !rowData.eventId &&
+           !rowData.content && !rowData.tagName && !rowData.tagValue && !rowData.idValid;
+  }
+
+  function cardMatchesRowData(card, r) {
+    if (r.kind) {
+      const kinds = r.kind.split(',').map(k => k.trim());
+      if (!kinds.includes(card.dataset.kind)) return false;
+    }
+    if (r.pubkey) {
+      const hex = card.dataset.pubkey.toLowerCase();
+      const npub = card.dataset.npub.toLowerCase();
+      if (!hex.startsWith(r.pubkey) && !npub.startsWith(r.pubkey)) return false;
+    }
+    if (r.eventId && !card.dataset.eventId.toLowerCase().startsWith(r.eventId)) return false;
+    if (r.content && !card.dataset.content.includes(r.content)) return false;
+    if (r.tagName) {
+      let tagPairs;
+      try { tagPairs = JSON.parse(card.dataset.tagPairs || '[]'); } catch { tagPairs = []; }
+      const hasMatch = tagPairs.some(tp => {
+        const nameMatch = tp.n === r.tagName;
+        const valueMatch = !r.tagValue || tp.v.includes(r.tagValue);
+        return nameMatch && valueMatch;
+      });
+      if (!hasMatch) return false;
+    } else if (r.tagValue) {
+      if (!card.dataset.tagValues.includes(r.tagValue)) return false;
+    }
+    if (r.idValid && card.dataset.idValid !== r.idValid) return false;
+    return true;
+  }
+
+  function matchesFilters(card) {
+    const rows = document.querySelectorAll('#filterRows .filter-row');
+    if (rows.length === 0) return matchesLabelFilter(card);
+
+    const rowData = [];
+    rows.forEach(rowEl => {
+      const rowId = parseInt(rowEl.dataset.rowId);
+      const data = readFilterRow(rowEl);
+      const logic = filterRowLogics[rowId] || null; // null for first row
+      rowData.push({ data, logic, rowId });
+    });
+
+    // Group rows by OR: consecutive AND rows form a group, groups are OR'd.
+    // e.g. a AND b OR c AND d => (a AND b) OR (c AND d)
+    const groups = []; // each group is an array of row data objects
+    let currentGroup = [];
+    for (const { data, logic } of rowData) {
+      if (isRowEmpty(data)) continue;
+      if (logic === 'OR' && currentGroup.length > 0) {
+        groups.push(currentGroup);
+        currentGroup = [];
+      }
+      currentGroup.push(data);
+    }
+    if (currentGroup.length > 0) groups.push(currentGroup);
+
+    // No non-empty rows
+    if (groups.length === 0) return matchesLabelFilter(card);
+
+    // A group matches if ALL rows in it match (AND). Result is true if ANY group matches (OR).
+    const result = groups.some(group =>
+      group.every(data => cardMatchesRowData(card, data))
+    );
+    if (!result) return false;
+
+    return matchesLabelFilter(card);
+  }
+
+  function matchesLabelFilter(card) {
+    const labelFilter = document.getElementById('filterLabel')?.value || '';
+    if (labelFilter) {
+      const cardLabels = (card.dataset.labels || '').split(',');
+      if (!cardLabels.includes(labelFilter)) return false;
+    }
+    return true;
+  }
+
+  function applyFilters() {
+    document.querySelectorAll('.event-card').forEach(card => {
+      card.style.display = matchesFilters(card) ? '' : 'none';
+    });
+    updateDisplayedCount();
+  }
+
+  function clearFilters() {
+    document.getElementById('filterRows').innerHTML = '';
+    filterRowLogics = {};
+    filterRowIdCounter = 0;
+    addFilterRow(); // re-add the initial row
+    const labelSel = document.getElementById('filterLabel');
+    if (labelSel) labelSel.value = '';
+    applyFilters();
+  }
+
+  // Initialize with one filter row
+  addFilterRow();
+
+  // ── Custom Labels ──────────────────────────────────────
+  const LABEL_COLORS = [
+    { bg: '#7b68ee', fg: '#fff' },
+    { bg: '#f87171', fg: '#fff' },
+    { bg: '#4ade80', fg: '#000' },
+    { bg: '#fbbf24', fg: '#000' },
+    { bg: '#22d3ee', fg: '#000' },
+    { bg: '#f472b6', fg: '#fff' },
+    { bg: '#fb923c', fg: '#000' },
+    { bg: '#a78bfa', fg: '#fff' },
+    { bg: '#34d399', fg: '#000' },
+    { bg: '#f9a8d4', fg: '#000' },
+    { bg: '#93c5fd', fg: '#000' },
+    { bg: '#fca5a5', fg: '#000' },
+    { bg: '#d9f99d', fg: '#000' },
+    { bg: '#c4b5fd', fg: '#000' },
+    { bg: '#67e8f9', fg: '#000' },
+    { bg: '#fdba74', fg: '#000' },
+  ];
+
+  let customLabels = loadLabelsFromStorage();
+  let labelIdCounter = customLabels.reduce((max, l) => Math.max(max, l.id), 0);
+  let editingLabelId = null;
+
+  function loadLabelsFromStorage() {
+    try {
+      const stored = localStorage.getItem('relaySpy_customLabels');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  }
+
+  function saveLabelsToStorage() {
+    try {
+      localStorage.setItem('relaySpy_customLabels', JSON.stringify(customLabels));
+    } catch { /* storage full or unavailable */ }
+  }
+
+  function getNextColor() {
+    return LABEL_COLORS[customLabels.length % LABEL_COLORS.length];
+  }
+
+  function openLabelModal(editId) {
+    editingLabelId = editId || null;
+    const modal = document.getElementById('labelModal');
+    const title = document.getElementById('labelModalTitle');
+    const saveBtn = document.getElementById('labelSaveBtn');
+
+    // Reset fields
+    document.getElementById('labelName').value = '';
+    document.getElementById('labelKind').value = '';
+    document.getElementById('labelPubkey').value = '';
+    document.getElementById('labelEventId').value = '';
+    document.getElementById('labelContent').value = '';
+    document.getElementById('labelIdValid').value = '';
+    // Reset tag conditions
+    document.getElementById('tagConditions').innerHTML = '';
+    tagConditionIdCounter = 0;
+
+    if (editingLabelId) {
+      const label = customLabels.find(l => l.id === editingLabelId);
+      if (label) {
+        title.textContent = 'Edit Label';
+        saveBtn.textContent = 'Save Changes';
+        document.getElementById('labelName').value = label.name;
+        document.getElementById('labelKind').value = label.criteria.kind || '';
+        document.getElementById('labelPubkey').value = label.criteria.pubkey || '';
+        document.getElementById('labelEventId').value = label.criteria.eventId || '';
+        document.getElementById('labelContent').value = label.criteria.content || '';
+        document.getElementById('labelIdValid').value = label.criteria.idValid || '';
+        // Restore tag conditions with per-condition logic
+        (label.criteria.tagConditions || []).forEach(tc => {
+          addTagConditionRow(tc.name, tc.value, tc.logic);
+        });
+        updateLabelPreview(label.color);
+      }
+    } else {
+      title.textContent = 'Add Custom Label';
+      saveBtn.textContent = 'Add Label';
+      updateLabelPreview(getNextColor());
+    }
+
+    modal.classList.add('open');
+    document.getElementById('labelName').focus();
+  }
+
+  function closeLabelModal() {
+    document.getElementById('labelModal').classList.remove('open');
+    editingLabelId = null;
+  }
+
+  // Close modal on overlay click
+  document.getElementById('labelModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('labelModal')) closeLabelModal();
+  });
+
+  // Close modal on Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLabelModal();
+  });
+
+  let tagConditionIdCounter = 0;
+
+  function addTagConditionRow(name, value, logic) {
+    tagConditionIdCounter++;
+    const tcId = tagConditionIdCounter;
+    const container = document.getElementById('tagConditions');
+    const existingRows = container.querySelectorAll('.tag-condition-row');
+
+    // Add AND/OR connector if not the first row
+    if (existingRows.length > 0) {
+      const connectorLogic = logic || 'AND';
+      const connector = document.createElement('div');
+      connector.className = 'filter-logic-connector tag-logic-connector';
+      connector.id = 'tag-logic-' + tcId;
+      connector.innerHTML = `
+        <span class="logic-line"></span>
+        <button class="logic-btn ${connectorLogic === 'AND' ? 'active' : ''}" onclick="toggleTagCondLogic(${tcId},'AND')" data-logic="AND">AND</button>
+        <button class="logic-btn ${connectorLogic === 'OR' ? 'active' : ''}" onclick="toggleTagCondLogic(${tcId},'OR')" data-logic="OR">OR</button>
+        <span class="logic-line"></span>
+      `;
+      container.appendChild(connector);
+    }
+
+    const row = document.createElement('div');
+    row.className = 'tag-condition-row';
+    row.dataset.tcId = tcId;
+    row.innerHTML = `
+      <input type="text" class="tag-cond-name" placeholder="tag name (e.g. p, e, t)" value="${escapeHtml(name || '')}">
+      <input type="text" class="tag-cond-value" placeholder="tag value (optional)" value="${escapeHtml(value || '')}">
+      <span class="remove-tag-btn" onclick="removeTagConditionRow(${tcId})">&times;</span>
+    `;
+    container.appendChild(row);
+    row.querySelectorAll('input').forEach(inp => inp.addEventListener('input', triggerPreviewUpdate));
+  }
+
+  function removeTagConditionRow(tcId) {
+    const row = document.querySelector(`.tag-condition-row[data-tc-id="${tcId}"]`);
+    const connector = document.getElementById('tag-logic-' + tcId);
+    if (connector) connector.remove();
+    if (row) row.remove();
+    // If the first remaining row now has a connector before it, remove that too
+    const container = document.getElementById('tagConditions');
+    const firstChild = container.firstElementChild;
+    if (firstChild && firstChild.classList.contains('tag-logic-connector')) {
+      firstChild.remove();
+    }
+    triggerPreviewUpdate();
+  }
+
+  function toggleTagCondLogic(tcId, logic) {
+    const connector = document.getElementById('tag-logic-' + tcId);
+    if (connector) {
+      connector.querySelectorAll('.logic-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.logic === logic);
+      });
+    }
+    triggerPreviewUpdate();
+  }
+
+  function getTagConditionsFromModal() {
+    const container = document.getElementById('tagConditions');
+    const rows = container.querySelectorAll('.tag-condition-row');
+    const conditions = [];
+    rows.forEach(row => {
+      const tcId = parseInt(row.dataset.tcId);
+      const name = row.querySelector('.tag-cond-name').value.trim().toLowerCase();
+      const value = row.querySelector('.tag-cond-value').value.trim().toLowerCase();
+      // Determine logic from the connector above this row
+      const connector = document.getElementById('tag-logic-' + tcId);
+      let logic = null; // null for first row
+      if (connector) {
+        const activeBtn = connector.querySelector('.logic-btn.active');
+        logic = activeBtn ? activeBtn.dataset.logic : 'AND';
+      }
+      if (name || value) conditions.push({ name, value, logic });
+    });
+    return conditions;
+  }
+
+  function triggerPreviewUpdate() {
+    const color = editingLabelId
+      ? customLabels.find(l => l.id === editingLabelId)?.color || getNextColor()
+      : getNextColor();
+    updateLabelPreview(color);
+  }
+
+  function updateLabelPreview(color) {
+    const badge = document.getElementById('labelPreviewBadge');
+    const name = document.getElementById('labelName').value.trim() || 'Label';
+    badge.style.background = color.bg;
+    badge.style.color = color.fg;
+    badge.textContent = name;
+
+    const parts = [];
+    const kind = document.getElementById('labelKind').value.trim();
+    const pubkey = document.getElementById('labelPubkey').value.trim();
+    const eventId = document.getElementById('labelEventId').value.trim();
+    const content = document.getElementById('labelContent').value.trim();
+    const idValid = document.getElementById('labelIdValid').value;
+    if (kind) parts.push('kind=' + kind);
+    if (pubkey) parts.push('pubkey starts with ' + pubkey.slice(0, 16));
+    if (eventId) parts.push('id starts with ' + eventId.slice(0, 16));
+    if (content) parts.push('content contains "' + content + '"');
+    if (idValid) parts.push('ID ' + idValid);
+
+    const tagConds = getTagConditionsFromModal();
+    if (tagConds.length > 0) {
+      const tagParts = tagConds.map((tc, i) => {
+        let desc = '';
+        if (tc.name && tc.value) desc = `[${tc.name}]="${tc.value}"`;
+        else if (tc.name) desc = `has [${tc.name}]`;
+        else desc = `tag value "${tc.value}"`;
+        if (i > 0 && tc.logic) desc = `${tc.logic} ${desc}`;
+        return desc;
+      });
+      parts.push('tags: ' + tagParts.join(' '));
+    }
+
+    document.getElementById('labelCriteriaSummary').textContent =
+      parts.length ? 'Matches: ' + parts.join(' AND ') : 'Fill in at least one filter criterion';
+  }
+
+  // Update preview on input
+  ['labelName','labelKind','labelPubkey','labelEventId','labelContent','labelIdValid'].forEach(id => {
+    document.getElementById(id).addEventListener('input', triggerPreviewUpdate);
+  });
+
+  function saveLabel() {
+    const name = document.getElementById('labelName').value.trim();
+    if (!name) {
+      document.getElementById('labelName').style.borderColor = 'var(--red)';
+      document.getElementById('labelName').focus();
+      setTimeout(() => document.getElementById('labelName').style.borderColor = '', 2000);
+      return;
+    }
+
+    const tagConditions = getTagConditionsFromModal();
+
+    const criteria = {
+      kind: document.getElementById('labelKind').value.trim(),
+      pubkey: document.getElementById('labelPubkey').value.trim().toLowerCase(),
+      eventId: document.getElementById('labelEventId').value.trim().toLowerCase(),
+      content: document.getElementById('labelContent').value.trim().toLowerCase(),
+      idValid: document.getElementById('labelIdValid').value,
+      tagConditions: tagConditions,
+    };
+
+    // Must have at least one criterion
+    const hasCriteria = criteria.kind || criteria.pubkey || criteria.eventId ||
+      criteria.content || criteria.idValid || tagConditions.length > 0;
+    if (!hasCriteria) {
+      document.getElementById('labelCriteriaSummary').textContent = 'You must set at least one filter criterion!';
+      document.getElementById('labelCriteriaSummary').style.color = 'var(--red)';
+      setTimeout(() => document.getElementById('labelCriteriaSummary').style.color = '', 2000);
+      return;
+    }
+
+    if (editingLabelId) {
+      const label = customLabels.find(l => l.id === editingLabelId);
+      if (label) {
+        label.name = name;
+        label.criteria = criteria;
+      }
+    } else {
+      labelIdCounter++;
+      customLabels.push({
+        id: labelIdCounter,
+        name: name,
+        color: getNextColor(),
+        criteria: criteria,
+      });
+    }
+
+    saveLabelsToStorage();
+    closeLabelModal();
+    renderLabelsBar();
+    refreshLabelFilterDropdown();
+    reapplyLabelsToAllEvents();
+    applyFilters();
+  }
+
+  function deleteLabel(id) {
+    customLabels = customLabels.filter(l => l.id !== id);
+    saveLabelsToStorage();
+    // If we were filtering by this label, clear that filter
+    const filterLabel = document.getElementById('filterLabel');
+    if (filterLabel.value === String(id)) filterLabel.value = '';
+    renderLabelsBar();
+    refreshLabelFilterDropdown();
+    reapplyLabelsToAllEvents();
+    applyFilters();
+  }
+
+  function renderLabelsBar() {
+    const bar = document.getElementById('labelsBar');
+    const chips = document.getElementById('labelChips');
+    if (customLabels.length === 0) {
+      bar.style.display = 'none';
+      return;
+    }
+    bar.style.display = 'flex';
+    const activeFilter = document.getElementById('filterLabel').value;
+    chips.innerHTML = customLabels.map(l => `
+      <span class="label-chip ${activeFilter === String(l.id) ? 'active-filter' : ''}"
+            style="background:${l.color.bg};color:${l.color.fg}"
+            onclick="toggleLabelFilter(${l.id})">
+        ${escapeHtml(l.name)}
+        <span class="label-edit" onclick="event.stopPropagation();openLabelModal(${l.id})" title="Edit">&#9998;</span>
+        <span class="label-delete" onclick="event.stopPropagation();deleteLabel(${l.id})" title="Delete">&times;</span>
+      </span>
+    `).join('');
+  }
+
+  function toggleLabelFilter(id) {
+    const filterLabel = document.getElementById('filterLabel');
+    if (filterLabel.value === String(id)) {
+      filterLabel.value = '';
+    } else {
+      filterLabel.value = String(id);
+    }
+    renderLabelsBar();
+    applyFilters();
+  }
+
+  function refreshLabelFilterDropdown() {
+    const sel = document.getElementById('filterLabel');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All</option>' +
+      customLabels.map(l => `<option value="${l.id}">${escapeHtml(l.name)}</option>`).join('');
+    // Restore selection if still valid
+    if (customLabels.find(l => String(l.id) === current)) {
+      sel.value = current;
+    }
+  }
+
+  function matchesLabelCriteria(card, criteria) {
+    if (criteria.kind) {
+      const kinds = criteria.kind.split(',').map(k => k.trim());
+      if (!kinds.includes(card.dataset.kind)) return false;
+    }
+    if (criteria.pubkey) {
+      const hex = card.dataset.pubkey.toLowerCase();
+      const npub = card.dataset.npub.toLowerCase();
+      if (!hex.startsWith(criteria.pubkey) && !npub.startsWith(criteria.pubkey)) return false;
+    }
+    if (criteria.eventId && !card.dataset.eventId.toLowerCase().startsWith(criteria.eventId)) return false;
+    if (criteria.content && !card.dataset.content.includes(criteria.content)) return false;
+    if (criteria.idValid && card.dataset.idValid !== criteria.idValid) return false;
+
+    // Tag conditions with grouped AND/OR logic (same as filter rows)
+    const tagConds = criteria.tagConditions || [];
+    if (tagConds.length > 0) {
+      let tagPairs;
+      try { tagPairs = JSON.parse(card.dataset.tagPairs || '[]'); } catch { tagPairs = []; }
+
+      const matchesCond = (tc) => {
+        return tagPairs.some(tp => {
+          const nameMatch = !tc.name || tp.n === tc.name;
+          const valueMatch = !tc.value || tp.v.includes(tc.value);
+          return nameMatch && valueMatch;
+        });
+      };
+
+      // Group by OR, AND within groups — same pattern as filter rows
+      const groups = [];
+      let currentGroup = [];
+      for (const tc of tagConds) {
+        if (tc.logic === 'OR' && currentGroup.length > 0) {
+          groups.push(currentGroup);
+          currentGroup = [];
+        }
+        currentGroup.push(tc);
+      }
+      if (currentGroup.length > 0) groups.push(currentGroup);
+
+      const tagResult = groups.some(group =>
+        group.every(tc => matchesCond(tc))
+      );
+      if (!tagResult) return false;
+    }
+
+    return true;
+  }
+
+  function getMatchingLabels(card) {
+    return customLabels.filter(l => matchesLabelCriteria(card, l.criteria));
+  }
+
+  function renderLabelsOnCard(card) {
+    const matching = getMatchingLabels(card);
+    const labelZone = card.querySelector('.event-label-zone');
+    if (!labelZone) return;
+
+    if (matching.length === 0) {
+      card.dataset.labels = '';
+      labelZone.innerHTML = '';
+      return;
+    }
+    card.dataset.labels = matching.map(l => l.id).join(',');
+    labelZone.innerHTML = matching.map(l =>
+      `<span class="label-badge" style="background:${l.color.bg};color:${l.color.fg}">${escapeHtml(l.name)}</span>`
+    ).join('');
+  }
+
+  function reapplyLabelsToAllEvents() {
+    document.querySelectorAll('.event-card').forEach(card => {
+      renderLabelsOnCard(card);
+    });
+  }
+
+  // Initialize saved labels on load
+  if (customLabels.length > 0) {
+    renderLabelsBar();
+    refreshLabelFilterDropdown();
+  }
+
+  // ── Export ──────────────────────────────────────────
+  let exportScope = 'all';
+
+  function openExportModal() {
+    document.getElementById('exportModal').classList.add('open');
+    exportScope = 'all';
+    renderExportScope();
+    updateExportCount();
+  }
+
+  function closeExportModal() {
+    document.getElementById('exportModal').classList.remove('open');
+  }
+
+  document.getElementById('exportModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('exportModal')) closeExportModal();
+  });
+
+  function setExportScope(scope) {
+    exportScope = scope;
+    renderExportScope();
+    updateExportCount();
+  }
+
+  function renderExportScope() {
+    document.querySelectorAll('#exportModal .export-scope label').forEach(el => {
+      el.classList.toggle('active', el.dataset.scope === exportScope);
+    });
+  }
+
+  function updateExportCount() {
+    const count = getExportEntries().length;
+    document.getElementById('exportEventCount').textContent = count;
+  }
+
+  function getExportEntries() {
+    if (exportScope === 'all') return events;
+    // Get seq numbers of visible cards
+    const visibleSeqs = new Set();
+    document.querySelectorAll('.event-card').forEach(card => {
+      if (card.style.display !== 'none') {
+        visibleSeqs.add(card.dataset.seq);
+      }
+    });
+    return events.filter(e => visibleSeqs.has(String(e.seq)));
+  }
+
+  function getLabelsForEvent(entry) {
+    const eventTags = (entry.event.tags || []).map(t => ({
+      n: t[0]?.toLowerCase() || '',
+      v: t.slice(1).join(',').toLowerCase()
+    }));
+
+    return customLabels.filter(label => {
+      const c = label.criteria;
+      if (c.kind) {
+        const kinds = c.kind.split(',').map(k => k.trim());
+        if (!kinds.includes(String(entry.event.kind))) return false;
+      }
+      if (c.pubkey) {
+        const hex = (entry.event.pubkey || '').toLowerCase();
+        const npub = (hexToNpub(entry.event.pubkey) || '').toLowerCase();
+        if (!hex.startsWith(c.pubkey) && !npub.startsWith(c.pubkey)) return false;
+      }
+      if (c.eventId && !(entry.event.id || '').toLowerCase().startsWith(c.eventId)) return false;
+      if (c.content && !(entry.event.content || '').toLowerCase().includes(c.content)) return false;
+      if (c.idValid) {
+        const valid = entry.idValid ? 'valid' : 'invalid';
+        if (valid !== c.idValid) return false;
+      }
+      const tagConds = c.tagConditions || [];
+      if (tagConds.length > 0) {
+        const matchesCond = (tc) => eventTags.some(tp => {
+          const nameMatch = !tc.name || tp.n === tc.name;
+          const valueMatch = !tc.value || tp.v.includes(tc.value);
+          return nameMatch && valueMatch;
+        });
+        const groups = [];
+        let curGroup = [];
+        for (const tc of tagConds) {
+          if (tc.logic === 'OR' && curGroup.length > 0) {
+            groups.push(curGroup);
+            curGroup = [];
+          }
+          curGroup.push(tc);
+        }
+        if (curGroup.length > 0) groups.push(curGroup);
+        const tagResult = groups.some(g => g.every(tc => matchesCond(tc)));
+        if (!tagResult) return false;
+      }
+      return true;
+    }).map(l => l.name);
+  }
+
+  function doExport(format) {
+    const entries = getExportEntries();
+    if (entries.length === 0) {
+      closeExportModal();
+      return;
+    }
+
+    let content, filename, mime;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const relayUrl = document.getElementById('relayUrl').value.trim();
+
+    if (format === 'json') {
+      const data = {
+        exported_at: new Date().toISOString(),
+        relay: relayUrl,
+        scope: exportScope,
+        event_count: entries.length,
+        labels: customLabels.map(l => ({
+          name: l.name,
+          color: l.color,
+          criteria: l.criteria,
+        })),
+        events: entries.map(e => ({
+          seq: e.seq,
+          detected_at: new Date(e.receivedAt).toISOString(),
+          detected_at_unix_ms: e.receivedAt,
+          id_valid: e.idValid,
+          size_bytes: e.size,
+          matched_labels: getLabelsForEvent(e),
+          npub: hexToNpub(e.event.pubkey) || null,
+          note_id: hexToNote(e.event.id) || null,
+          kind_name: getKindName(e.event.kind),
+          latency_seconds: Math.max(0, Math.floor(e.receivedAt / 1000) - e.event.created_at),
+          event: e.event,
+        })),
+      };
+      content = JSON.stringify(data, null, 2);
+      filename = `relay-spy-export-${timestamp}.json`;
+      mime = 'application/json';
+
+    } else if (format === 'csv') {
+      const csvEscape = (val) => {
+        const s = String(val ?? '');
+        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+          return '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+      };
+      const headers = [
+        'seq', 'event_id', 'note_id', 'pubkey', 'npub', 'kind', 'kind_name',
+        'created_at', 'created_at_utc', 'detected_at_utc', 'latency_s',
+        'content', 'tags_json', 'tag_count', 'sig', 'id_valid', 'size_bytes',
+        'matched_labels'
+      ];
+      const rows = entries.map(e => [
+        e.seq,
+        e.event.id,
+        hexToNote(e.event.id) || '',
+        e.event.pubkey,
+        hexToNpub(e.event.pubkey) || '',
+        e.event.kind,
+        getKindName(e.event.kind),
+        e.event.created_at,
+        new Date(e.event.created_at * 1000).toISOString(),
+        new Date(e.receivedAt).toISOString(),
+        Math.max(0, Math.floor(e.receivedAt / 1000) - e.event.created_at),
+        e.event.content || '',
+        JSON.stringify(e.event.tags || []),
+        (e.event.tags || []).length,
+        e.event.sig || '',
+        e.idValid ? 'valid' : 'invalid',
+        e.size,
+        getLabelsForEvent(e).join('; '),
+      ].map(csvEscape));
+      content = headers.join(',') + '\n' + rows.map(r => r.join(',')).join('\n');
+      filename = `relay-spy-export-${timestamp}.csv`;
+      mime = 'text/csv';
+
+    } else if (format === 'raw') {
+      content = entries.map(e => JSON.stringify(e.event)).join('\n');
+      filename = `relay-spy-export-${timestamp}.jsonl`;
+      mime = 'application/x-ndjson';
+    }
+
+    // Download
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    closeExportModal();
+  }
+
+  // Auto-connect on load
+  document.getElementById('relayUrl').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') toggleConnection();
+  });
+
+  // Connect on page load
+  window.addEventListener('load', () => {
+    connect();
+  });
+
+  // Easter egg: console ASCII art
+  (function() {
+    const art = [
+      ' ',
+      '██████╗ ███████╗██╗      █████╗ ██╗   ██╗    ███████╗██████╗ ██╗   ██╗',
+      '██╔══██╗██╔════╝██║     ██╔══██╗╚██╗ ██╔╝    ██╔════╝██╔══██╗╚██╗ ██╔╝',
+      '██████╔╝█████╗  ██║     ███████║ ╚████╔╝     ███████╗██████╔╝ ╚████╔╝ ',
+      '██╔══██╗██╔══╝  ██║     ██╔══██║  ╚██╔╝      ╚════██║██╔═══╝   ╚██╔╝  ',
+      '██║  ██║███████╗███████╗██║  ██║   ██║        ███████║██║        ██║   ',
+      '╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝   ╚═╝        ╚══════╝╚═╝        ╚═╝  ',
+      ' ',
+      '  👁  The relay doesn\'t know it\'s being watched. Don\'t tell anyone.',
+      '  🔍  https://github.com/5t34k/relay-spy',
+      ' ',
+    ].join('\n');
+
+    console.log('%c' + art, 'color: #7b68ee; font-family: monospace; font-size: 11px; line-height: 1.4;');
+  })();
+</script>
+
+<div style="position:fixed;bottom:8px;right:12px;font-size:11px;color:#555;z-index:50;"><a href="https://nostrgate.com/#npub1x5t34kxd79m657qcuwp4zrypy9t8t4e6yks5zapjvau29t0xvgaqakh2p2" target="_blank" rel="noopener" style="color:#666;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">vibed by 5t34k</a></div>
+
+</body>
+</html>
