@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Relay Spy</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='38' cy='38' r='24' fill='none' stroke='%237b68ee' stroke-width='12'/><line x1='56' y1='56' x2='85' y2='85' stroke='%237b68ee' stroke-width='12' stroke-linecap='round'/></svg>">
+<script type="module">
+  try {
+    const { verifyEvent } = await import('https://esm.run/nostr-tools@2');
+    if (typeof verifyEvent === 'function') {
+      window.nostrVerifyEvent = verifyEvent;
+    } else {
+      console.warn('Relay Spy: nostr-tools loaded but verifyEvent not found');
+    }
+  } catch(e) {
+    console.warn('Relay Spy: signature verification unavailable (could not load nostr-tools):', e);
+  }
+</script>
 <style>
   :root {
     --bg: #0a0a0f;
@@ -880,9 +892,9 @@
     <div class="relay-input-group">
       <input type="text" id="relayUrl" value="ws://localhost:3334" placeholder="wss://relay.example.com">
       <button id="connectBtn" onclick="toggleConnection()">Connect</button>
-      <button class="secondary" id="fetchPastBtn" onclick="openFetchPastModal()" disabled>Fetch Past</button>
     </div>
     <div class="actions-row">
+      <button class="secondary" id="fetchPastBtn" onclick="openFetchPastModal()" disabled>Fetch Past</button>
       <button class="secondary" id="pauseBtn" onclick="togglePause()">Pause</button>
       <button class="secondary" onclick="clearEvents()">Clear</button>
       <button class="secondary" onclick="openExportModal()">Export</button>
@@ -962,6 +974,15 @@
         <option value="">Any</option>
         <option value="valid">Valid only</option>
         <option value="invalid">Invalid only</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Sig Valid</label>
+      <select id="labelSigValid">
+        <option value="">Any</option>
+        <option value="valid">Valid only</option>
+        <option value="invalid">Invalid only</option>
+        <option value="na">N/A only</option>
       </select>
     </div>
     <div class="label-preview" id="labelPreview">
@@ -1152,6 +1173,7 @@
   let totalEvents = 0;
   let rateEvents = [];
   let subId = 'relay-spy-' + Math.random().toString(36).slice(2, 8);
+  const pastSubIds = new Set();
 
   // Bech32 encoding for npub/note display
   const BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
@@ -1254,6 +1276,17 @@
     return computed === event.id;
   }
 
+  // Returns true/false if nostr-tools is loaded, null if unavailable.
+  // Only call this after confirming idValid — if the ID is wrong the sig result is meaningless.
+  function verifyEventSig(event) {
+    if (!window.nostrVerifyEvent || !event.sig || !event.id || !event.pubkey) return null;
+    try {
+      return window.nostrVerifyEvent(event);
+    } catch(e) {
+      return false;
+    }
+  }
+
   // Connection
   function toggleConnection() {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
@@ -1300,7 +1333,11 @@
         if (data[0] === 'EVENT' && data[2]) {
           handleEvent(data[2], msg.data);
         } else if (data[0] === 'EOSE') {
-          // End of stored events - could display a marker
+          // Close past-event subscriptions once the relay is done sending history
+          if (pastSubIds.has(data[1])) {
+            ws.send(JSON.stringify(["CLOSE", data[1]]));
+            pastSubIds.delete(data[1]);
+          }
         } else if (data[0] === 'NOTICE') {
           console.log('Relay notice:', data[1]);
         }
@@ -1324,6 +1361,8 @@
     rateEvents.push(now);
 
     const idValid = await verifyEventId(event);
+    // Only check sig if ID is good — a bad ID makes the sig result meaningless
+    const sigValid = idValid ? verifyEventSig(event) : null;
     const eventSize = new TextEncoder().encode(JSON.stringify(event)).length;
 
     const entry = {
@@ -1332,6 +1371,7 @@
       rawMessage: rawMessage,
       receivedAt: now,
       idValid: idValid,
+      sigValid: sigValid,
       size: eventSize,
     };
 
@@ -1427,7 +1467,7 @@
     const emptyState = document.getElementById('emptyState');
     if (emptyState) emptyState.remove();
 
-    const { event, seq, receivedAt, idValid, size } = entry;
+    const { event, seq, receivedAt, idValid, sigValid, size } = entry;
     const kindName = getKindName(event.kind);
     const kindClass = getKindClass(event.kind);
 
@@ -1441,6 +1481,7 @@
     card.dataset.eventId = event.id || '';
     card.dataset.content = (event.content || '').toLowerCase();
     card.dataset.idValid = idValid ? 'valid' : 'invalid';
+    card.dataset.sigValid = sigValid === true ? 'valid' : sigValid === false ? 'invalid' : 'na';
 
     // Build tags data attributes for filtering
     const tagNames = (event.tags || []).map(t => t[0]).join(',');
@@ -1462,13 +1503,12 @@
 
     card.innerHTML = `
       <div class="event-header" onclick="toggleEventBody(this)">
-        <span class="event-seq">#${seq}</span>
+        <span class="event-seq" style="${sigValid === false ? 'color:var(--red)' : ''}">#${seq}</span>
         <span class="event-label-zone"></span>
         <span class="event-rest">
           <span class="event-kind-badge ${kindClass}">Kind ${event.kind}: ${escapeHtml(kindName)}</span>
           <span class="event-pubkey" title="${escapeHtml(hexToNpub(event.pubkey) || event.pubkey || '')}">${escapeHtml((hexToNpub(event.pubkey) || '').slice(0, 20))}...</span>
           <span class="event-tags-inline">${inlineTags}${tagsOverflow}</span>
-          <span class="event-id-verification ${idValid ? 'valid' : 'invalid'}">${idValid ? 'ID OK' : 'ID BAD'}</span>
           <span class="event-size">${formatSize(size)}</span>
           <span class="event-time">
             <span class="relative-time" data-received="${receivedAt}">${relativeTime(receivedAt)}</span>
@@ -1507,6 +1547,9 @@
 
           <span class="detail-label">Signature</span>
           <span class="detail-value" style="word-break:break-all;font-size:11px;">${escapeHtml(event.sig || 'N/A')}</span>
+
+          <span class="detail-label">Sig Valid</span>
+          <span class="detail-value"><span class="event-sig-verification ${sigValid === true ? 'valid' : sigValid === false ? 'invalid' : 'unchecked'}">${sigValid === true ? 'VALID - Schnorr signature matches pubkey' : sigValid === false ? 'INVALID - signature does not match!' : 'N/A - verification library not loaded'}</span></span>
 
           <span class="detail-label">Size</span>
           <span class="detail-value">${formatSize(size)} (${size} bytes)</span>
@@ -1657,6 +1700,15 @@
             <option value="invalid">Invalid</option>
           </select>
         </div>
+        <div class="filter-group">
+          <label>Sig Valid</label>
+          <select class="fr-sigvalid" onchange="applyFilters()">
+            <option value="">All</option>
+            <option value="valid">Valid</option>
+            <option value="invalid">Invalid</option>
+            <option value="na">N/A</option>
+          </select>
+        </div>
         ${showRemove ? '<button class="filter-row-remove" onclick="removeFilterRow(' + rowId + ')" title="Remove row">&times;</button>' : ''}
       </div>
     `;
@@ -1718,12 +1770,13 @@
       tagName: rowEl.querySelector('.fr-tagname').value.trim().toLowerCase(),
       tagValue: rowEl.querySelector('.fr-tagvalue').value.trim().toLowerCase(),
       idValid: rowEl.querySelector('.fr-idvalid').value,
+      sigValid: rowEl.querySelector('.fr-sigvalid').value,
     };
   }
 
   function isRowEmpty(rowData) {
     return !rowData.kind && !rowData.pubkey && !rowData.eventId &&
-           !rowData.content && !rowData.tagName && !rowData.tagValue && !rowData.idValid;
+           !rowData.content && !rowData.tagName && !rowData.tagValue && !rowData.idValid && !rowData.sigValid;
   }
 
   function cardMatchesRowData(card, r) {
@@ -1751,6 +1804,7 @@
       if (!card.dataset.tagValues.includes(r.tagValue)) return false;
     }
     if (r.idValid && card.dataset.idValid !== r.idValid) return false;
+    if (r.sigValid && card.dataset.sigValid !== r.sigValid) return false;
     return true;
   }
 
@@ -1875,6 +1929,7 @@
     document.getElementById('labelEventId').value = '';
     document.getElementById('labelContent').value = '';
     document.getElementById('labelIdValid').value = '';
+    document.getElementById('labelSigValid').value = '';
     // Reset tag conditions
     document.getElementById('tagConditions').innerHTML = '';
     tagConditionIdCounter = 0;
@@ -1890,6 +1945,7 @@
         document.getElementById('labelEventId').value = label.criteria.eventId || '';
         document.getElementById('labelContent').value = label.criteria.content || '';
         document.getElementById('labelIdValid').value = label.criteria.idValid || '';
+        document.getElementById('labelSigValid').value = label.criteria.sigValid || '';
         // Restore tag conditions with per-condition logic
         (label.criteria.tagConditions || []).forEach(tc => {
           addTagConditionRow(tc.name, tc.value, tc.logic);
@@ -2020,11 +2076,13 @@
     const eventId = document.getElementById('labelEventId').value.trim();
     const content = document.getElementById('labelContent').value.trim();
     const idValid = document.getElementById('labelIdValid').value;
+    const sigValid = document.getElementById('labelSigValid').value;
     if (kind) parts.push('kind=' + kind);
     if (pubkey) parts.push('pubkey starts with ' + pubkey.slice(0, 16));
     if (eventId) parts.push('id starts with ' + eventId.slice(0, 16));
     if (content) parts.push('content contains "' + content + '"');
     if (idValid) parts.push('ID ' + idValid);
+    if (sigValid) parts.push('sig ' + sigValid);
 
     const tagConds = getTagConditionsFromModal();
     if (tagConds.length > 0) {
@@ -2044,7 +2102,7 @@
   }
 
   // Update preview on input
-  ['labelName','labelKind','labelPubkey','labelEventId','labelContent','labelIdValid'].forEach(id => {
+  ['labelName','labelKind','labelPubkey','labelEventId','labelContent','labelIdValid','labelSigValid'].forEach(id => {
     document.getElementById(id).addEventListener('input', triggerPreviewUpdate);
   });
 
@@ -2065,12 +2123,13 @@
       eventId: document.getElementById('labelEventId').value.trim().toLowerCase(),
       content: document.getElementById('labelContent').value.trim().toLowerCase(),
       idValid: document.getElementById('labelIdValid').value,
+      sigValid: document.getElementById('labelSigValid').value,
       tagConditions: tagConditions,
     };
 
     // Must have at least one criterion
     const hasCriteria = criteria.kind || criteria.pubkey || criteria.eventId ||
-      criteria.content || criteria.idValid || tagConditions.length > 0;
+      criteria.content || criteria.idValid || criteria.sigValid || tagConditions.length > 0;
     if (!hasCriteria) {
       document.getElementById('labelCriteriaSummary').textContent = 'You must set at least one filter criterion!';
       document.getElementById('labelCriteriaSummary').style.color = 'var(--red)';
@@ -2170,6 +2229,7 @@
     if (criteria.eventId && !card.dataset.eventId.toLowerCase().startsWith(criteria.eventId)) return false;
     if (criteria.content && !card.dataset.content.includes(criteria.content)) return false;
     if (criteria.idValid && card.dataset.idValid !== criteria.idValid) return false;
+    if (criteria.sigValid && card.dataset.sigValid !== criteria.sigValid) return false;
 
     // Tag conditions with grouped AND/OR logic (same as filter rows)
     const tagConds = criteria.tagConditions || [];
@@ -2325,6 +2385,7 @@
     }
 
     const pastSubId = 'relay-spy-past-' + Math.random().toString(36).slice(2, 8);
+    pastSubIds.add(pastSubId);
     const req = JSON.stringify(["REQ", pastSubId, filter]);
     ws.send(req);
 
@@ -2438,6 +2499,7 @@
           detected_at: new Date(e.receivedAt).toISOString(),
           detected_at_unix_ms: e.receivedAt,
           id_valid: e.idValid,
+          sig_valid: e.sigValid,
           size_bytes: e.size,
           matched_labels: getLabelsForEvent(e),
           npub: hexToNpub(e.event.pubkey) || null,
@@ -2462,7 +2524,7 @@
       const headers = [
         'seq', 'event_id', 'note_id', 'pubkey', 'npub', 'kind', 'kind_name',
         'created_at', 'created_at_utc', 'detected_at_utc', 'latency_s',
-        'content', 'tags_json', 'tag_count', 'sig', 'id_valid', 'size_bytes',
+        'content', 'tags_json', 'tag_count', 'sig', 'id_valid', 'sig_valid', 'size_bytes',
         'matched_labels'
       ];
       const rows = entries.map(e => [
@@ -2482,6 +2544,7 @@
         (e.event.tags || []).length,
         e.event.sig || '',
         e.idValid ? 'valid' : 'invalid',
+        e.sigValid === true ? 'valid' : e.sigValid === false ? 'invalid' : 'na',
         e.size,
         getLabelsForEvent(e).join('; '),
       ].map(csvEscape));
@@ -2538,7 +2601,7 @@
   })();
 </script>
 
-<div style="position:fixed;bottom:8px;right:12px;font-size:11px;color:#555;z-index:50;"><a href="https://nostrgate.com/#npub1x5t34kxd79m657qcuwp4zrypy9t8t4e6yks5zapjvau29t0xvgaqakh2p2" target="_blank" rel="noopener" style="color:#666;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">vibed by 5t34k</a></div>
+<div style="position:fixed;bottom:8px;right:12px;font-size:11px;color:#555;z-index:50;display:flex;gap:10px;align-items:center;"><a href="https://github.com/5t34k/relay-spy" target="_blank" rel="noopener" style="color:#666;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">GitHub</a><a href="https://nostrgate.com/#npub1x5t34kxd79m657qcuwp4zrypy9t8t4e6yks5zapjvau29t0xvgaqakh2p2" target="_blank" rel="noopener" style="color:#666;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">vibed by 5t34k</a></div>
 
 </body>
 </html>
