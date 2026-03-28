@@ -46,6 +46,7 @@
     align-items: center;
     gap: 16px;
     margin-bottom: 12px;
+    flex-wrap: wrap;
   }
 
   .logo {
@@ -879,6 +880,7 @@
     <div class="relay-input-group">
       <input type="text" id="relayUrl" value="ws://localhost:3334" placeholder="wss://relay.example.com">
       <button id="connectBtn" onclick="toggleConnection()">Connect</button>
+      <button class="secondary" id="fetchPastBtn" onclick="openFetchPastModal()" disabled>Fetch Past</button>
     </div>
     <div class="actions-row">
       <button class="secondary" id="pauseBtn" onclick="togglePause()">Pause</button>
@@ -1001,6 +1003,29 @@
     </div>
     <div class="modal-actions">
       <button class="secondary" onclick="closeExportModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fetch Past Events Modal -->
+<div class="modal-overlay" id="fetchPastModal">
+  <div class="modal">
+    <h3>Fetch Past Events</h3>
+    <div class="modal-field">
+      <label for="fetchSince">Since (required)</label>
+      <input type="datetime-local" id="fetchSince">
+    </div>
+    <div class="modal-field">
+      <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+        <input type="checkbox" id="fetchUntilEnabled" onchange="toggleFetchUntil()">
+        <span>Until (optional — limit end of window)</span>
+      </label>
+      <input type="datetime-local" id="fetchUntil" disabled style="opacity:0.4;">
+    </div>
+    <p id="fetchPastError" style="color:var(--red);font-size:12px;min-height:16px;margin:0 0 8px;"></p>
+    <div class="modal-actions">
+      <button onclick="doFetchPast()">Fetch</button>
+      <button class="secondary" onclick="closeFetchPastModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -1243,8 +1268,9 @@
     const txt = document.getElementById('statusText');
     dot.className = 'status-dot ' + state;
     txt.textContent = text;
-    document.getElementById('connectBtn').textContent =
-      state === 'disconnected' ? 'Connect' : 'Disconnect';
+    const connected = state !== 'disconnected';
+    document.getElementById('connectBtn').textContent = connected ? 'Disconnect' : 'Connect';
+    document.getElementById('fetchPastBtn').disabled = !connected;
   }
 
   function connect() {
@@ -1263,8 +1289,8 @@
 
     ws.onopen = () => {
       setStatus('connected', 'Connected');
-      // Subscribe to ALL events from now on
-      const req = JSON.stringify(["REQ", subId, {}]);
+      // Subscribe only to new events from this moment forward
+      const req = JSON.stringify(["REQ", subId, { since: Math.floor(Date.now() / 1000) }]);
       ws.send(req);
     };
 
@@ -1293,7 +1319,7 @@
   }
 
   async function handleEvent(event, rawMessage) {
-    eventSeq++;
+    const seq = ++eventSeq;
     const now = Date.now();
     rateEvents.push(now);
 
@@ -1301,7 +1327,7 @@
     const eventSize = new TextEncoder().encode(JSON.stringify(event)).length;
 
     const entry = {
-      seq: eventSeq,
+      seq: seq,
       event: event,
       rawMessage: rawMessage,
       receivedAt: now,
@@ -2228,6 +2254,85 @@
 
   document.getElementById('exportModal').addEventListener('click', (e) => {
     if (e.target === document.getElementById('exportModal')) closeExportModal();
+  });
+
+  // ── Fetch Past Events ────────────────────────────────
+  function openFetchPastModal() {
+    document.getElementById('fetchPastError').textContent = '';
+    // Default since to 1 hour ago
+    const oneHourAgo = new Date(Date.now() - 3600 * 1000);
+    document.getElementById('fetchSince').value = toDatetimeLocal(oneHourAgo);
+    document.getElementById('fetchUntilEnabled').checked = false;
+    document.getElementById('fetchUntil').value = '';
+    document.getElementById('fetchUntil').disabled = true;
+    document.getElementById('fetchUntil').style.opacity = '0.4';
+    document.getElementById('fetchPastModal').classList.add('open');
+  }
+
+  function closeFetchPastModal() {
+    document.getElementById('fetchPastModal').classList.remove('open');
+  }
+
+  function toggleFetchUntil() {
+    const enabled = document.getElementById('fetchUntilEnabled').checked;
+    const untilInput = document.getElementById('fetchUntil');
+    untilInput.disabled = !enabled;
+    untilInput.style.opacity = enabled ? '1' : '0.4';
+    if (enabled && !untilInput.value) {
+      untilInput.value = toDatetimeLocal(new Date());
+    }
+  }
+
+  function toDatetimeLocal(date) {
+    const pad = n => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function doFetchPast() {
+    const errorEl = document.getElementById('fetchPastError');
+    errorEl.textContent = '';
+
+    const sinceVal = document.getElementById('fetchSince').value;
+    if (!sinceVal) {
+      errorEl.textContent = 'A start date/time is required.';
+      return;
+    }
+    const sinceTs = Math.floor(new Date(sinceVal).getTime() / 1000);
+    if (isNaN(sinceTs)) {
+      errorEl.textContent = 'Invalid start date/time.';
+      return;
+    }
+
+    const filter = { since: sinceTs };
+
+    const untilEnabled = document.getElementById('fetchUntilEnabled').checked;
+    if (untilEnabled) {
+      const untilVal = document.getElementById('fetchUntil').value;
+      if (!untilVal) {
+        errorEl.textContent = 'End date/time is enabled but empty.';
+        return;
+      }
+      const untilTs = Math.floor(new Date(untilVal).getTime() / 1000);
+      if (isNaN(untilTs)) {
+        errorEl.textContent = 'Invalid end date/time.';
+        return;
+      }
+      if (untilTs <= sinceTs) {
+        errorEl.textContent = 'End date/time must be after start date/time.';
+        return;
+      }
+      filter.until = untilTs;
+    }
+
+    const pastSubId = 'relay-spy-past-' + Math.random().toString(36).slice(2, 8);
+    const req = JSON.stringify(["REQ", pastSubId, filter]);
+    ws.send(req);
+
+    closeFetchPastModal();
+  }
+
+  document.getElementById('fetchPastModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('fetchPastModal')) closeFetchPastModal();
   });
 
   function setExportScope(scope) {
