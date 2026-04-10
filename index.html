@@ -1323,7 +1323,7 @@
     ws.onopen = () => {
       setStatus('connected', 'Connected');
       // Subscribe only to new events from this moment forward
-      const req = JSON.stringify(["REQ", subId, { since: Math.floor(Date.now() / 1000) }]);
+      const req = JSON.stringify(["REQ", subId, {limit: 0}]);
       ws.send(req);
     };
 
