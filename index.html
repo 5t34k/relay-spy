@@ -1310,6 +1310,8 @@
     const url = document.getElementById('relayUrl').value.trim();
     if (!url) return;
 
+    try { localStorage.setItem('relaySpy_lastRelayUrl', url); } catch (e) {}
+
     setStatus('connecting', 'Connecting...');
     document.getElementById('relayName').textContent = url;
 
@@ -2578,6 +2580,10 @@
 
   // Connect on page load
   window.addEventListener('load', () => {
+    try {
+      const savedUrl = localStorage.getItem('relaySpy_lastRelayUrl');
+      if (savedUrl) document.getElementById('relayUrl').value = savedUrl;
+    } catch (e) {}
     connect();
   });
 
