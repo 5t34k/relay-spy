@@ -3,11 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--
+  Content Security Policy. script-src uses sha256 hashes of the two inline
+  <script> blocks below — if either block's contents change (even whitespace),
+  recompute its hash and update this header, otherwise the script will be
+  blocked. style-src keeps 'unsafe-inline' because the page has a large
+  inline <style> block and many style="..." attributes; CSS injection is a
+  much smaller XSS surface than script injection.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-+GuJPxV7PU6r/NBKdckwjRqkMeE//aE7OU2oN4BkSNY=' 'sha256-0i5c7o4SyKo2JJDeAS1ZN62hhLx8p9U9YundcIo2XHs=' https://esm.run https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ws: wss: https://esm.run https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none';">
 <title>Relay Spy</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='38' cy='38' r='24' fill='none' stroke='%237b68ee' stroke-width='12'/><line x1='56' y1='56' x2='85' y2='85' stroke='%237b68ee' stroke-width='12' stroke-linecap='round'/></svg>">
 <script type="module">
   try {
-    const { verifyEvent } = await import('https://esm.run/nostr-tools@2');
+    const { verifyEvent } = await import('https://esm.run/nostr-tools@2.23.3');
     if (typeof verifyEvent === 'function') {
       window.nostrVerifyEvent = verifyEvent;
     } else {
@@ -882,6 +891,11 @@
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+  /* Footer */
+  .footer-links { position: fixed; bottom: 8px; right: 12px; font-size: 11px; color: #555; z-index: 50; display: flex; gap: 10px; align-items: center; }
+  .footer-link { color: #666; text-decoration: none; }
+  .footer-link:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -891,13 +905,13 @@
     <div class="logo">RELAY SPY</div>
     <div class="relay-input-group">
       <input type="text" id="relayUrl" value="ws://localhost:3334" placeholder="wss://relay.example.com">
-      <button id="connectBtn" onclick="toggleConnection()">Connect</button>
+      <button id="connectBtn" data-action="toggleConnection">Connect</button>
     </div>
     <div class="actions-row">
-      <button class="secondary" id="fetchPastBtn" onclick="openFetchPastModal()" disabled>Fetch Past</button>
-      <button class="secondary" id="pauseBtn" onclick="togglePause()">Pause</button>
-      <button class="secondary" onclick="clearEvents()">Clear</button>
-      <button class="secondary" onclick="openExportModal()">Export</button>
+      <button class="secondary" id="fetchPastBtn" data-action="openFetchPastModal" disabled>Fetch Past</button>
+      <button class="secondary" id="pauseBtn" data-action="togglePause">Pause</button>
+      <button class="secondary" data-action="clearEvents">Clear</button>
+      <button class="secondary" data-action="openExportModal">Export</button>
     </div>
   </div>
   <div class="status-bar">
@@ -915,17 +929,17 @@
 <div class="filters-container">
   <div id="filterRows"></div>
   <div class="filter-actions-bar">
-    <button class="secondary" onclick="addFilterRow()">+ Add Filter Row</button>
-    <button class="secondary" onclick="clearFilters()">Clear Filters</button>
+    <button class="secondary" data-action="addFilterRow">+ Add Filter Row</button>
+    <button class="secondary" data-action="clearFilters">Clear Filters</button>
   </div>
   <div class="filter-actions-bar">
     <div class="filter-group">
       <label>Label</label>
-      <select id="filterLabel" onchange="applyFilters()">
+      <select id="filterLabel" data-action="applyFilters" data-event="change">
         <option value="">All</option>
       </select>
     </div>
-    <button onclick="openLabelModal()">+ Add Custom Label</button>
+    <button data-action="openLabelModal">+ Add Custom Label</button>
   </div>
 </div>
 
@@ -965,7 +979,7 @@
       <div class="tag-conditions" id="tagConditions">
         <!-- tag condition rows with AND/OR connectors inserted here -->
       </div>
-      <button class="secondary add-tag-btn" onclick="addTagConditionRow()">+ Add Tag Condition</button>
+      <button class="secondary add-tag-btn" data-action="addTagConditionRow">+ Add Tag Condition</button>
       <div class="hint">Each condition matches tags where name equals and value contains the text. AND groups are OR'd together, same logic as filter rows.</div>
     </div>
     <div class="modal-field">
@@ -990,8 +1004,8 @@
       <div class="label-criteria-summary" id="labelCriteriaSummary">Fill in at least one filter criterion</div>
     </div>
     <div class="modal-actions">
-      <button class="secondary" onclick="closeLabelModal()">Cancel</button>
-      <button id="labelSaveBtn" onclick="saveLabel()">Add Label</button>
+      <button class="secondary" data-action="closeLabelModal">Cancel</button>
+      <button id="labelSaveBtn" data-action="saveLabel">Add Label</button>
     </div>
   </div>
 </div>
@@ -1002,28 +1016,28 @@
     <h3>Export Events</h3>
     <div class="export-scope">
       <span style="color:var(--text-dim);font-size:12px;padding:5px 0;">Scope:</span>
-      <label class="active" data-scope="all" onclick="setExportScope('all')">All Events</label>
-      <label data-scope="filtered" onclick="setExportScope('filtered')">Filtered Only</label>
+      <label class="active" data-scope="all" data-action="setExportScope" data-arg="all">All Events</label>
+      <label data-scope="filtered" data-action="setExportScope" data-arg="filtered">Filtered Only</label>
     </div>
     <div class="export-count" id="exportCount">
       <span class="stat" id="exportEventCount">0</span> events will be exported
     </div>
     <div class="export-options">
-      <div class="export-option" onclick="doExport('json')">
+      <div class="export-option" data-action="doExport" data-arg="json">
         <h4>JSON</h4>
         <p>Full structured data with all event fields, raw JSON, matched labels, verification status, detection timestamps, and event sizes. Best for programmatic use.</p>
       </div>
-      <div class="export-option" onclick="doExport('csv')">
+      <div class="export-option" data-action="doExport" data-arg="csv">
         <h4>CSV</h4>
         <p>Flattened table with one row per event. Includes id, pubkey, npub, kind, kind name, created_at, content, tags (JSON), labels, ID valid, size, detected at. Opens in spreadsheets.</p>
       </div>
-      <div class="export-option" onclick="doExport('raw')">
+      <div class="export-option" data-action="doExport" data-arg="raw">
         <h4>Raw JSONL</h4>
         <p>One raw nostr event JSON object per line, no extra metadata. Useful for replaying events to another relay or importing into other tools.</p>
       </div>
     </div>
     <div class="modal-actions">
-      <button class="secondary" onclick="closeExportModal()">Cancel</button>
+      <button class="secondary" data-action="closeExportModal">Cancel</button>
     </div>
   </div>
 </div>
@@ -1038,15 +1052,15 @@
     </div>
     <div class="modal-field">
       <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-        <input type="checkbox" id="fetchUntilEnabled" onchange="toggleFetchUntil()">
+        <input type="checkbox" id="fetchUntilEnabled" data-action="toggleFetchUntil" data-event="change">
         <span>Until (optional — limit end of window)</span>
       </label>
       <input type="datetime-local" id="fetchUntil" disabled style="opacity:0.4;">
     </div>
     <p id="fetchPastError" style="color:var(--red);font-size:12px;min-height:16px;margin:0 0 8px;"></p>
     <div class="modal-actions">
-      <button onclick="doFetchPast()">Fetch</button>
-      <button class="secondary" onclick="closeFetchPastModal()">Cancel</button>
+      <button data-action="doFetchPast">Fetch</button>
+      <button class="secondary" data-action="closeFetchPastModal">Cancel</button>
     </div>
   </div>
 </div>
@@ -1174,6 +1188,8 @@
   let rateEvents = [];
   let subId = 'relay-spy-' + Math.random().toString(36).slice(2, 8);
   const pastSubIds = new Set();
+  // Cap in-memory event log so a flooding relay can't exhaust browser memory
+  const MAX_EVENTS = 5000;
 
   // Bech32 encoding for npub/note display
   const BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
@@ -1379,13 +1395,28 @@
 
     if (paused) {
       pauseBuffer.push(entry);
+      if (pauseBuffer.length > MAX_EVENTS) pauseBuffer.length = MAX_EVENTS;
     } else {
       events.unshift(entry);
       renderEvent(entry, true);
+      trimEventsToCap();
     }
 
     totalEvents++;
     updateStats();
+  }
+
+  function trimEventsToCap() {
+    if (events.length <= MAX_EVENTS) return;
+    const overflow = events.length - MAX_EVENTS;
+    events.length = MAX_EVENTS;
+    const container = document.getElementById('eventsContainer');
+    if (!container) return;
+    for (let i = 0; i < overflow; i++) {
+      const last = container.lastElementChild;
+      if (!last || last.id === 'emptyState') break;
+      last.remove();
+    }
   }
 
   function updateStats() {
@@ -1434,22 +1465,44 @@
     return str.length > len ? str.slice(0, len) + '...' : str;
   }
 
+  // Returns a DocumentFragment of text nodes and styled <span>s. Every value
+  // (matched tokens and unmatched separators alike) is set via textContent or
+  // createTextNode so HTML in the input cannot be interpreted as markup.
   function syntaxHighlightJson(json) {
+    const fragment = document.createDocumentFragment();
     const str = JSON.stringify(json, null, 2);
-    return str.replace(
-      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
-      (match) => {
-        let cls = 'json-number';
-        if (/^"/.test(match)) {
-          cls = /:$/.test(match) ? 'json-key' : 'json-string';
-        } else if (/true|false/.test(match)) {
-          cls = 'json-bool';
-        } else if (/null/.test(match)) {
-          cls = 'json-null';
-        }
-        return `<span class="${cls}">${match}</span>`;
+    if (str === undefined) return fragment;
+    // Bound work for pathological inputs (huge events, ReDoS surface)
+    if (str.length > 1_000_000) {
+      fragment.appendChild(document.createTextNode(str.slice(0, 1_000_000) + '\n[truncated]'));
+      return fragment;
+    }
+    const re = /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g;
+    let last = 0;
+    let m;
+    while ((m = re.exec(str)) !== null) {
+      if (m.index > last) {
+        fragment.appendChild(document.createTextNode(str.slice(last, m.index)));
       }
-    );
+      const match = m[0];
+      let cls = 'json-number';
+      if (match[0] === '"') {
+        cls = /:$/.test(match) ? 'json-key' : 'json-string';
+      } else if (match === 'true' || match === 'false') {
+        cls = 'json-bool';
+      } else if (match === 'null') {
+        cls = 'json-null';
+      }
+      const span = document.createElement('span');
+      span.className = cls;
+      span.textContent = match;
+      fragment.appendChild(span);
+      last = re.lastIndex;
+    }
+    if (last < str.length) {
+      fragment.appendChild(document.createTextNode(str.slice(last)));
+    }
+    return fragment;
   }
 
   function escapeHtml(str) {
@@ -1465,6 +1518,19 @@
     } catch { return false; }
   }
 
+  // Tiny helpers for DOM construction. textContent is used for every value
+  // sourced from a relay/event so HTML in the input is never interpreted.
+  function el(tag, className, text) {
+    const e = document.createElement(tag);
+    if (className) e.className = className;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  function addDetail(parent, label, value, valueClass) {
+    parent.appendChild(el('span', 'detail-label', label));
+    parent.appendChild(el('span', 'detail-value' + (valueClass ? ' ' + valueClass : ''), value));
+  }
+
   function renderEvent(entry, prepend) {
     const emptyState = document.getElementById('emptyState');
     if (emptyState) emptyState.remove();
@@ -1472,120 +1538,177 @@
     const { event, seq, receivedAt, idValid, sigValid, size } = entry;
     const kindName = getKindName(event.kind);
     const kindClass = getKindClass(event.kind);
+    const npub = hexToNpub(event.pubkey) || '';
+    const noteId = hexToNote(event.id) || '';
+
+    // Defensive normalization — relay can send anything for any field
+    const safeTags = (event.tags || [])
+      .filter(t => Array.isArray(t) && t.length > 0)
+      .map(t => t.map(v => typeof v === 'string' ? v : String(v ?? '')));
+    const kindStr = String(event.kind ?? '');
+    const createdAtStr = String(event.created_at ?? '');
+    const createdAtNum = Number(event.created_at);
+    const latencyStr = Number.isFinite(createdAtNum)
+      ? Math.max(0, Math.floor(receivedAt / 1000) - createdAtNum) + 's (detected - created)'
+      : 'n/a (created_at not numeric)';
 
     const card = document.createElement('div');
-    const borderKindClass = 'border-' + kindClass;
-    card.className = `event-card highlight-new ${borderKindClass}`;
+    card.className = `event-card highlight-new border-${kindClass}`;
     card.dataset.seq = seq;
-    card.dataset.kind = event.kind;
+    card.dataset.kind = kindStr;
     card.dataset.pubkey = event.pubkey || '';
-    card.dataset.npub = hexToNpub(event.pubkey) || '';
+    card.dataset.npub = npub;
     card.dataset.eventId = event.id || '';
     card.dataset.content = (event.content || '').toLowerCase();
     card.dataset.idValid = idValid ? 'valid' : 'invalid';
     card.dataset.sigValid = sigValid === true ? 'valid' : sigValid === false ? 'invalid' : 'na';
-
-    // Build tags data attributes for filtering
-    const tagNames = (event.tags || []).map(t => t[0]).join(',');
-    const tagValues = (event.tags || []).map(t => t.slice(1).join(',')).join('|');
-    card.dataset.tagNames = tagNames;
-    card.dataset.tagValues = tagValues.toLowerCase();
-    // Store structured tag pairs for label matching: [{n:"p", v:"abc..."}, ...]
+    card.dataset.tagNames = safeTags.map(t => t[0]).join(',');
+    card.dataset.tagValues = safeTags.map(t => t.slice(1).join(',')).join('|').toLowerCase();
     card.dataset.tagPairs = JSON.stringify(
-      (event.tags || []).map(t => ({ n: t[0]?.toLowerCase() || '', v: t.slice(1).join(',').toLowerCase() }))
+      safeTags.map(t => ({ n: (t[0] || '').toLowerCase(), v: t.slice(1).join(',').toLowerCase() }))
     );
 
-    // Build inline tags preview (show up to 4 tags)
-    const inlineTags = (event.tags || []).slice(0, 4).map(t => {
-      const val = t[1] ? truncate(t[1], 12) : '';
-      return `<span class="inline-tag"><span class="tag-key">${escapeHtml(t[0])}</span>${val ? ':' + escapeHtml(val) : ''}</span>`;
-    }).join('');
-    const moreTagCount = (event.tags || []).length - 4;
-    const tagsOverflow = moreTagCount > 0 ? `<span class="inline-tag">+${moreTagCount}</span>` : '';
+    // ── Header ───────────────────────────────────────────
+    const header = el('div', 'event-header');
+    header.addEventListener('click', () => toggleEventBody(header));
 
-    card.innerHTML = `
-      <div class="event-header" onclick="toggleEventBody(this)">
-        <span class="event-seq" style="${sigValid === false ? 'color:var(--red)' : ''}">#${seq}</span>
-        <span class="event-label-zone"></span>
-        <span class="event-rest">
-          <span class="event-kind-badge ${kindClass}">Kind ${event.kind}: ${escapeHtml(kindName)}</span>
-          <span class="event-pubkey" title="${escapeHtml(hexToNpub(event.pubkey) || event.pubkey || '')}">${escapeHtml((hexToNpub(event.pubkey) || '').slice(0, 20))}...</span>
-          <span class="event-tags-inline">${inlineTags}${tagsOverflow}</span>
-          <span class="event-size">${formatSize(size)}</span>
-          <span class="event-time">
-            <span class="relative-time" data-received="${receivedAt}">${relativeTime(receivedAt)}</span>
-          </span>
-        </span>
-      </div>
-      <div class="event-body" id="body-${seq}">
-        <div class="section-label">Event Fields</div>
-        <div class="event-details">
-          <span class="detail-label">Event ID</span>
-          <span class="detail-value id-hash">${escapeHtml(event.id || 'N/A')}</span>
+    const seqEl = el('span', 'event-seq', '#' + seq);
+    if (sigValid === false) seqEl.style.color = 'var(--red)';
+    header.appendChild(seqEl);
 
-          <span class="detail-label">Note ID</span>
-          <span class="detail-value" style="color:var(--pink)">${escapeHtml(hexToNote(event.id) || 'N/A')}</span>
+    header.appendChild(el('span', 'event-label-zone'));
 
-          <span class="detail-label">ID Valid</span>
-          <span class="detail-value"><span class="event-id-verification ${idValid ? 'valid' : 'invalid'}">${idValid ? 'VALID - computed hash matches' : 'INVALID - hash mismatch!'}</span></span>
+    const rest = el('span', 'event-rest');
+    rest.appendChild(el('span', 'event-kind-badge ' + kindClass, `Kind ${kindStr}: ${kindName}`));
 
-          <span class="detail-label">Pubkey (hex)</span>
-          <span class="detail-value pubkey">${escapeHtml(event.pubkey || 'N/A')}</span>
+    const pubkeyEl = el('span', 'event-pubkey', (npub || '').slice(0, 20) + '...');
+    pubkeyEl.title = npub || event.pubkey || '';
+    rest.appendChild(pubkeyEl);
 
-          <span class="detail-label">Pubkey (npub)</span>
-          <span class="detail-value pubkey">${escapeHtml(hexToNpub(event.pubkey) || 'N/A')}</span>
+    const tagsInline = el('span', 'event-tags-inline');
+    safeTags.slice(0, 4).forEach(t => {
+      const wrap = el('span', 'inline-tag');
+      wrap.appendChild(el('span', 'tag-key', t[0]));
+      if (t[1]) wrap.appendChild(document.createTextNode(':' + truncate(t[1], 12)));
+      tagsInline.appendChild(wrap);
+    });
+    const moreTagCount = safeTags.length - 4;
+    if (moreTagCount > 0) tagsInline.appendChild(el('span', 'inline-tag', '+' + moreTagCount));
+    rest.appendChild(tagsInline);
 
-          <span class="detail-label">Kind</span>
-          <span class="detail-value kind">${event.kind} (${escapeHtml(kindName)})</span>
+    rest.appendChild(el('span', 'event-size', formatSize(size)));
 
-          <span class="detail-label">Created At</span>
-          <span class="detail-value">${event.created_at} &mdash; ${formatTimestamp(event.created_at)}</span>
+    const timeWrap = el('span', 'event-time');
+    const relTime = el('span', 'relative-time', relativeTime(receivedAt));
+    relTime.dataset.received = String(receivedAt);
+    timeWrap.appendChild(relTime);
+    rest.appendChild(timeWrap);
+    header.appendChild(rest);
+    card.appendChild(header);
 
-          <span class="detail-label">Detected At</span>
-          <span class="detail-value">${new Date(receivedAt).toISOString().replace('T', ' ').slice(0, 19)} UTC (local)</span>
+    // ── Body ─────────────────────────────────────────────
+    const body = el('div', 'event-body');
+    body.id = 'body-' + seq;
 
-          <span class="detail-label">Latency</span>
-          <span class="detail-value">${Math.max(0, Math.floor(receivedAt / 1000) - event.created_at)}s (detected - created)</span>
+    body.appendChild(el('div', 'section-label', 'Event Fields'));
+    const details = el('div', 'event-details');
 
-          <span class="detail-label">Signature</span>
-          <span class="detail-value" style="word-break:break-all;font-size:11px;">${escapeHtml(event.sig || 'N/A')}</span>
+    addDetail(details, 'Event ID', event.id || 'N/A', 'id-hash');
 
-          <span class="detail-label">Sig Valid</span>
-          <span class="detail-value"><span class="event-sig-verification ${sigValid === true ? 'valid' : sigValid === false ? 'invalid' : 'unchecked'}">${sigValid === true ? 'VALID - Schnorr signature matches pubkey' : sigValid === false ? 'INVALID - signature does not match!' : 'N/A - verification library not loaded'}</span></span>
+    const noteRow = el('span', 'detail-value', noteId || 'N/A');
+    noteRow.style.color = 'var(--pink)';
+    details.appendChild(el('span', 'detail-label', 'Note ID'));
+    details.appendChild(noteRow);
 
-          <span class="detail-label">Size</span>
-          <span class="detail-value">${formatSize(size)} (${size} bytes)</span>
+    details.appendChild(el('span', 'detail-label', 'ID Valid'));
+    const idValidWrap = el('span', 'detail-value');
+    idValidWrap.appendChild(el('span', 'event-id-verification ' + (idValid ? 'valid' : 'invalid'),
+      idValid ? 'VALID - computed hash matches' : 'INVALID - hash mismatch!'));
+    details.appendChild(idValidWrap);
 
-          <span class="detail-label">Tag Count</span>
-          <span class="detail-value">${(event.tags || []).length} tags</span>
-        </div>
+    addDetail(details, 'Pubkey (hex)', event.pubkey || 'N/A', 'pubkey');
+    addDetail(details, 'Pubkey (npub)', npub || 'N/A', 'pubkey');
+    addDetail(details, 'Kind', `${kindStr} (${kindName})`, 'kind');
+    addDetail(details, 'Created At', `${createdAtStr} \u2014 ${formatTimestamp(createdAtNum)}`);
+    addDetail(details, 'Detected At', new Date(receivedAt).toISOString().replace('T', ' ').slice(0, 19) + ' UTC (local)');
+    addDetail(details, 'Latency', latencyStr);
 
-        ${(event.tags && event.tags.length > 0) ? `
-        <div class="section-label">Tags</div>
-        <table class="tags-table">
-          <tr><th>#</th><th>Tag</th><th>Values</th></tr>
-          ${event.tags.map((tag, i) => `
-            <tr>
-              <td>${i}</td>
-              <td><span class="tag-name">${escapeHtml(tag[0])}</span></td>
-              <td>${tag.slice(1).map(v => escapeHtml(v)).join(' &middot; ') || '<em style="color:var(--text-dim)">empty</em>'}</td>
-            </tr>
-          `).join('')}
-        </table>
-        ` : ''}
+    const sigRow = el('span', 'detail-value', event.sig || 'N/A');
+    sigRow.style.wordBreak = 'break-all';
+    sigRow.style.fontSize = '11px';
+    details.appendChild(el('span', 'detail-label', 'Signature'));
+    details.appendChild(sigRow);
 
-        <div class="section-label">Content ${isJsonContent(event.content) ? '(JSON detected)' : ''}</div>
-        <div class="content-preview ${isJsonContent(event.content) ? 'json' : ''}">
-          ${isJsonContent(event.content) ? syntaxHighlightJson(JSON.parse(event.content)) : escapeHtml(event.content || '(empty)')}
-        </div>
+    details.appendChild(el('span', 'detail-label', 'Sig Valid'));
+    const sigValidWrap = el('span', 'detail-value');
+    const sigCls = sigValid === true ? 'valid' : sigValid === false ? 'invalid' : 'unchecked';
+    const sigText = sigValid === true ? 'VALID - Schnorr signature matches pubkey'
+      : sigValid === false ? 'INVALID - signature does not match!'
+      : 'N/A - verification library not loaded';
+    sigValidWrap.appendChild(el('span', 'event-sig-verification ' + sigCls, sigText));
+    details.appendChild(sigValidWrap);
 
-        <div class="section-label">
-          Raw Event JSON
-          <button class="copy-btn" onclick="copyJson(event, ${seq})">Copy JSON</button>
-        </div>
-        <div class="raw-json">${syntaxHighlightJson(event)}</div>
-      </div>
-    `;
+    addDetail(details, 'Size', `${formatSize(size)} (${size} bytes)`);
+    addDetail(details, 'Tag Count', safeTags.length + ' tags');
+    body.appendChild(details);
+
+    // ── Tags table ───────────────────────────────────────
+    if (safeTags.length > 0) {
+      body.appendChild(el('div', 'section-label', 'Tags'));
+      const table = el('table', 'tags-table');
+      const headRow = el('tr');
+      headRow.appendChild(el('th', null, '#'));
+      headRow.appendChild(el('th', null, 'Tag'));
+      headRow.appendChild(el('th', null, 'Values'));
+      table.appendChild(headRow);
+      safeTags.forEach((tag, i) => {
+        const tr = el('tr');
+        tr.appendChild(el('td', null, String(i)));
+        const tagCell = el('td');
+        tagCell.appendChild(el('span', 'tag-name', tag[0]));
+        tr.appendChild(tagCell);
+        const valuesCell = el('td');
+        const values = tag.slice(1);
+        if (values.length === 0) {
+          const empty = el('em', null, 'empty');
+          empty.style.color = 'var(--text-dim)';
+          valuesCell.appendChild(empty);
+        } else {
+          values.forEach((v, j) => {
+            if (j > 0) valuesCell.appendChild(document.createTextNode(' \u00b7 '));
+            valuesCell.appendChild(document.createTextNode(v));
+          });
+        }
+        tr.appendChild(valuesCell);
+        table.appendChild(tr);
+      });
+      body.appendChild(table);
+    }
+
+    // ── Content ──────────────────────────────────────────
+    const contentIsJson = isJsonContent(event.content);
+    body.appendChild(el('div', 'section-label', 'Content' + (contentIsJson ? ' (JSON detected)' : '')));
+    const contentBox = el('div', 'content-preview' + (contentIsJson ? ' json' : ''));
+    if (contentIsJson) {
+      contentBox.appendChild(syntaxHighlightJson(JSON.parse(event.content)));
+    } else {
+      contentBox.textContent = event.content || '(empty)';
+    }
+    body.appendChild(contentBox);
+
+    // ── Raw event JSON ───────────────────────────────────
+    const rawHeader = el('div', 'section-label');
+    rawHeader.appendChild(document.createTextNode('Raw Event JSON'));
+    const copyBtn = el('button', 'copy-btn', 'Copy JSON');
+    copyBtn.addEventListener('click', () => copyJson(entry));
+    rawHeader.appendChild(copyBtn);
+    body.appendChild(rawHeader);
+
+    const rawBox = el('div', 'raw-json');
+    rawBox.appendChild(syntaxHighlightJson(event));
+    body.appendChild(rawBox);
+
+    card.appendChild(body);
 
     const container = document.getElementById('eventsContainer');
     if (prepend) {
@@ -1618,12 +1741,11 @@
     body.classList.toggle('open');
   }
 
-  window.copyJson = function(evt, seq) {
-    const entry = events.find(e => e.seq === seq);
-    if (entry) {
+  function copyJson(entry) {
+    if (entry && entry.event) {
       navigator.clipboard.writeText(JSON.stringify(entry.event, null, 2));
     }
-  };
+  }
 
   // Pause / Resume
   function togglePause() {
@@ -1645,6 +1767,7 @@
         renderEvent(entry, true);
       });
       pauseBuffer = [];
+      trimEventsToCap();
     }
   }
 
@@ -1667,55 +1790,81 @@
   let filterRowIdCounter = 0;
   let filterRowLogics = {}; // keyed by row id, value is 'AND'|'OR' for the connector ABOVE this row
 
-  function buildFilterRowHtml(rowId, showRemove) {
-    return `
-      <div class="filter-row" data-row-id="${rowId}">
-        <div class="filter-group">
-          <label>Kind</label>
-          <input type="text" class="fr-kind" placeholder="e.g. 1,4,30023" oninput="applyFilters()">
-        </div>
-        <div class="filter-group">
-          <label>Pubkey</label>
-          <input type="text" class="fr-pubkey" placeholder="hex or npub" oninput="applyFilters()">
-        </div>
-        <div class="filter-group">
-          <label>Event ID</label>
-          <input type="text" class="fr-eventid" placeholder="hex prefix" oninput="applyFilters()">
-        </div>
-        <div class="filter-group">
-          <label>Content</label>
-          <input type="text" class="fr-content" placeholder="text in content" oninput="applyFilters()">
-        </div>
-        <div class="filter-group">
-          <label>Tag name</label>
-          <input type="text" class="fr-tagname" placeholder="e.g. p, e, t" oninput="applyFilters()">
-        </div>
-        <div class="filter-group">
-          <label>Tag value</label>
-          <input type="text" class="fr-tagvalue" placeholder="value in tag" oninput="applyFilters()">
-        </div>
-        <div class="filter-group">
-          <label>ID Valid</label>
-          <select class="fr-idvalid" onchange="applyFilters()">
-            <option value="">All</option>
-            <option value="valid">Valid</option>
-            <option value="invalid">Invalid</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label>Sig Valid</label>
-          <select class="fr-sigvalid" onchange="applyFilters()">
-            <option value="">All</option>
-            <option value="valid">Valid</option>
-            <option value="invalid">Invalid</option>
-            <option value="na">N/A</option>
-          </select>
-        </div>
-        ${showRemove ? '<button class="filter-row-remove" onclick="removeFilterRow(' + rowId + ')" title="Remove row">&times;</button>' : ''}
-      </div>
-    `;
+  function buildFilterGroup(labelText, inputClass, placeholder) {
+    const group = document.createElement('div');
+    group.className = 'filter-group';
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    group.appendChild(label);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = inputClass;
+    input.placeholder = placeholder;
+    input.addEventListener('input', applyFilters);
+    group.appendChild(input);
+    return group;
   }
 
+  function buildFilterSelect(labelText, selectClass, options) {
+    const group = document.createElement('div');
+    group.className = 'filter-group';
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    group.appendChild(label);
+    const sel = document.createElement('select');
+    sel.className = selectClass;
+    options.forEach(([v, t]) => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = t;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', applyFilters);
+    group.appendChild(sel);
+    return group;
+  }
+
+  function buildFilterRow(rowId, showRemove) {
+    const row = document.createElement('div');
+    row.className = 'filter-row';
+    row.dataset.rowId = String(rowId);
+    row.appendChild(buildFilterGroup('Kind', 'fr-kind', 'e.g. 1,4,30023'));
+    row.appendChild(buildFilterGroup('Pubkey', 'fr-pubkey', 'hex or npub'));
+    row.appendChild(buildFilterGroup('Event ID', 'fr-eventid', 'hex prefix'));
+    row.appendChild(buildFilterGroup('Content', 'fr-content', 'text in content'));
+    row.appendChild(buildFilterGroup('Tag name', 'fr-tagname', 'e.g. p, e, t'));
+    row.appendChild(buildFilterGroup('Tag value', 'fr-tagvalue', 'value in tag'));
+    row.appendChild(buildFilterSelect('ID Valid', 'fr-idvalid', [['', 'All'], ['valid', 'Valid'], ['invalid', 'Invalid']]));
+    row.appendChild(buildFilterSelect('Sig Valid', 'fr-sigvalid', [['', 'All'], ['valid', 'Valid'], ['invalid', 'Invalid'], ['na', 'N/A']]));
+    if (showRemove) {
+      const btn = document.createElement('button');
+      btn.className = 'filter-row-remove';
+      btn.title = 'Remove row';
+      btn.textContent = '\u00d7';
+      btn.addEventListener('click', () => removeFilterRow(rowId));
+      row.appendChild(btn);
+    }
+    return row;
+  }
+
+  function buildLogicConnector(idAttr, currentLogic, onChoose) {
+    const connector = document.createElement('div');
+    connector.className = 'filter-logic-connector';
+    connector.id = idAttr;
+    connector.appendChild(document.createElement('span')).className = 'logic-line';
+    ['AND', 'OR'].forEach(logic => {
+      const btn = document.createElement('button');
+      btn.className = 'logic-btn' + (currentLogic === logic ? ' active' : '');
+      btn.dataset.logic = logic;
+      btn.textContent = logic;
+      btn.addEventListener('click', () => onChoose(logic));
+      connector.appendChild(btn);
+    });
+    const trail = document.createElement('span');
+    trail.className = 'logic-line';
+    connector.appendChild(trail);
+    return connector;
+  }
 
   function addFilterRow() {
     filterRowIdCounter++;
@@ -1723,24 +1872,16 @@
     const container = document.getElementById('filterRows');
     const existingRows = container.querySelectorAll('.filter-row');
 
-    // If there are already rows, add a logic connector before the new row
     if (existingRows.length > 0) {
       filterRowLogics[rowId] = 'OR';
-      const connector = document.createElement('div');
-      connector.className = 'filter-logic-connector';
-      connector.id = 'filter-logic-' + rowId;
-      connector.innerHTML = `
-        <span class="logic-line"></span>
-        <button class="logic-btn" onclick="toggleFilterRowLogic(${rowId},'AND')" data-logic="AND">AND</button>
-        <button class="logic-btn active" onclick="toggleFilterRowLogic(${rowId},'OR')" data-logic="OR">OR</button>
-        <span class="logic-line"></span>
-      `;
-      container.appendChild(connector);
+      container.appendChild(buildLogicConnector(
+        'filter-logic-' + rowId,
+        'OR',
+        (logic) => toggleFilterRowLogic(rowId, logic)
+      ));
     }
 
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = buildFilterRowHtml(rowId, existingRows.length > 0);
-    container.appendChild(wrapper.firstElementChild);
+    container.appendChild(buildFilterRow(rowId, existingRows.length > 0));
   }
 
   function removeFilterRow(rowId) {
@@ -1903,8 +2044,21 @@
 
   function loadLabelsFromStorage() {
     try {
-      const stored = localStorage.getItem('relaySpy_customLabels');
-      return stored ? JSON.parse(stored) : [];
+      const raw = JSON.parse(localStorage.getItem('relaySpy_customLabels') || '[]');
+      if (!Array.isArray(raw)) return [];
+      return raw
+        .filter(l => l && typeof l === 'object')
+        .map(l => {
+          const id = Number(l.id) || 0;
+          return {
+            id,
+            name: typeof l.name === 'string' ? l.name : '',
+            // Force color to come from the hardcoded palette so a poisoned
+            // localStorage blob can't inject CSS via inline style attributes
+            color: LABEL_COLORS[Math.abs(id) % LABEL_COLORS.length],
+            criteria: l.criteria && typeof l.criteria === 'object' ? l.criteria : {},
+          };
+        });
     } catch { return []; }
   }
 
@@ -1987,31 +2141,43 @@
     const container = document.getElementById('tagConditions');
     const existingRows = container.querySelectorAll('.tag-condition-row');
 
-    // Add AND/OR connector if not the first row
     if (existingRows.length > 0) {
-      const connectorLogic = logic || 'AND';
-      const connector = document.createElement('div');
-      connector.className = 'filter-logic-connector tag-logic-connector';
-      connector.id = 'tag-logic-' + tcId;
-      connector.innerHTML = `
-        <span class="logic-line"></span>
-        <button class="logic-btn ${connectorLogic === 'AND' ? 'active' : ''}" onclick="toggleTagCondLogic(${tcId},'AND')" data-logic="AND">AND</button>
-        <button class="logic-btn ${connectorLogic === 'OR' ? 'active' : ''}" onclick="toggleTagCondLogic(${tcId},'OR')" data-logic="OR">OR</button>
-        <span class="logic-line"></span>
-      `;
+      const connector = buildLogicConnector(
+        'tag-logic-' + tcId,
+        logic || 'AND',
+        (newLogic) => toggleTagCondLogic(tcId, newLogic)
+      );
+      connector.classList.add('tag-logic-connector');
       container.appendChild(connector);
     }
 
     const row = document.createElement('div');
     row.className = 'tag-condition-row';
-    row.dataset.tcId = tcId;
-    row.innerHTML = `
-      <input type="text" class="tag-cond-name" placeholder="tag name (e.g. p, e, t)" value="${escapeHtml(name || '')}">
-      <input type="text" class="tag-cond-value" placeholder="tag value (optional)" value="${escapeHtml(value || '')}">
-      <span class="remove-tag-btn" onclick="removeTagConditionRow(${tcId})">&times;</span>
-    `;
+    row.dataset.tcId = String(tcId);
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'tag-cond-name';
+    nameInput.placeholder = 'tag name (e.g. p, e, t)';
+    nameInput.value = typeof name === 'string' ? name : '';
+    nameInput.addEventListener('input', triggerPreviewUpdate);
+    row.appendChild(nameInput);
+
+    const valueInput = document.createElement('input');
+    valueInput.type = 'text';
+    valueInput.className = 'tag-cond-value';
+    valueInput.placeholder = 'tag value (optional)';
+    valueInput.value = typeof value === 'string' ? value : '';
+    valueInput.addEventListener('input', triggerPreviewUpdate);
+    row.appendChild(valueInput);
+
+    const removeBtn = document.createElement('span');
+    removeBtn.className = 'remove-tag-btn';
+    removeBtn.textContent = '\u00d7';
+    removeBtn.addEventListener('click', () => removeTagConditionRow(tcId));
+    row.appendChild(removeBtn);
+
     container.appendChild(row);
-    row.querySelectorAll('input').forEach(inp => inp.addEventListener('input', triggerPreviewUpdate));
   }
 
   function removeTagConditionRow(tcId) {
@@ -2184,15 +2350,23 @@
     }
     bar.style.display = 'flex';
     const activeFilter = document.getElementById('filterLabel').value;
-    chips.innerHTML = customLabels.map(l => `
-      <span class="label-chip ${activeFilter === String(l.id) ? 'active-filter' : ''}"
-            style="background:${l.color.bg};color:${l.color.fg}"
-            onclick="toggleLabelFilter(${l.id})">
-        ${escapeHtml(l.name)}
-        <span class="label-edit" onclick="event.stopPropagation();openLabelModal(${l.id})" title="Edit">&#9998;</span>
-        <span class="label-delete" onclick="event.stopPropagation();deleteLabel(${l.id})" title="Delete">&times;</span>
-      </span>
-    `).join('');
+    chips.textContent = '';
+    customLabels.forEach(l => {
+      const chip = el('span', 'label-chip' + (activeFilter === String(l.id) ? ' active-filter' : ''));
+      chip.style.background = l.color.bg;
+      chip.style.color = l.color.fg;
+      chip.appendChild(document.createTextNode(l.name));
+      const editBtn = el('span', 'label-edit', '\u270e');
+      editBtn.title = 'Edit';
+      editBtn.addEventListener('click', (e) => { e.stopPropagation(); openLabelModal(l.id); });
+      chip.appendChild(editBtn);
+      const delBtn = el('span', 'label-delete', '\u00d7');
+      delBtn.title = 'Delete';
+      delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteLabel(l.id); });
+      chip.appendChild(delBtn);
+      chip.addEventListener('click', () => toggleLabelFilter(l.id));
+      chips.appendChild(chip);
+    });
   }
 
   function toggleLabelFilter(id) {
@@ -2210,9 +2384,17 @@
     const sel = document.getElementById('filterLabel');
     if (!sel) return;
     const current = sel.value;
-    sel.innerHTML = '<option value="">All</option>' +
-      customLabels.map(l => `<option value="${l.id}">${escapeHtml(l.name)}</option>`).join('');
-    // Restore selection if still valid
+    sel.textContent = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'All';
+    sel.appendChild(allOpt);
+    customLabels.forEach(l => {
+      const opt = document.createElement('option');
+      opt.value = String(l.id);
+      opt.textContent = l.name;
+      sel.appendChild(opt);
+    });
     if (customLabels.find(l => String(l.id) === current)) {
       sel.value = current;
     }
@@ -2277,15 +2459,18 @@
     const labelZone = card.querySelector('.event-label-zone');
     if (!labelZone) return;
 
+    labelZone.textContent = '';
     if (matching.length === 0) {
       card.dataset.labels = '';
-      labelZone.innerHTML = '';
       return;
     }
     card.dataset.labels = matching.map(l => l.id).join(',');
-    labelZone.innerHTML = matching.map(l =>
-      `<span class="label-badge" style="background:${l.color.bg};color:${l.color.fg}">${escapeHtml(l.name)}</span>`
-    ).join('');
+    matching.forEach(l => {
+      const badge = el('span', 'label-badge', l.name);
+      badge.style.background = l.color.bg;
+      badge.style.color = l.color.fg;
+      labelZone.appendChild(badge);
+    });
   }
 
   function reapplyLabelsToAllEvents() {
@@ -2517,7 +2702,9 @@
 
     } else if (format === 'csv') {
       const csvEscape = (val) => {
-        const s = String(val ?? '');
+        let s = String(val ?? '');
+        // Neutralize spreadsheet formula injection (=, +, -, @, tab, CR at start)
+        if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
         if (s.includes(',') || s.includes('"') || s.includes('\n')) {
           return '"' + s.replace(/"/g, '""') + '"';
         }
@@ -2578,6 +2765,21 @@
     if (e.key === 'Enter') toggleConnection();
   });
 
+  // Wire up declarative handlers (data-action attributes) so the page can run
+  // under a strict CSP without script-src 'unsafe-inline' / inline event handlers.
+  const ACTIONS = {
+    toggleConnection, openFetchPastModal, togglePause, clearEvents, openExportModal,
+    addFilterRow, clearFilters, applyFilters, openLabelModal, addTagConditionRow,
+    closeLabelModal, saveLabel, setExportScope, doExport, closeExportModal,
+    toggleFetchUntil, doFetchPast, closeFetchPastModal,
+  };
+  document.querySelectorAll('[data-action]').forEach(el => {
+    const fn = ACTIONS[el.dataset.action];
+    if (!fn) return;
+    const evt = el.dataset.event || 'click';
+    el.addEventListener(evt, () => el.dataset.arg !== undefined ? fn(el.dataset.arg) : fn());
+  });
+
   // Connect on page load
   window.addEventListener('load', () => {
     try {
@@ -2607,7 +2809,7 @@
   })();
 </script>
 
-<div style="position:fixed;bottom:8px;right:12px;font-size:11px;color:#555;z-index:50;display:flex;gap:10px;align-items:center;"><a href="https://github.com/5t34k/relay-spy" target="_blank" rel="noopener" style="color:#666;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">GitHub</a><a href="https://nostrgate.com/#npub1x5t34kxd79m657qcuwp4zrypy9t8t4e6yks5zapjvau29t0xvgaqakh2p2" target="_blank" rel="noopener" style="color:#666;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">vibed by 5t34k</a></div>
+<div class="footer-links"><a class="footer-link" href="https://github.com/5t34k/relay-spy" target="_blank" rel="noopener">GitHub</a><a class="footer-link" href="https://nostrgate.com/#npub1x5t34kxd79m657qcuwp4zrypy9t8t4e6yks5zapjvau29t0xvgaqakh2p2" target="_blank" rel="noopener">vibed by 5t34k</a></div>
 
 </body>
 </html>
